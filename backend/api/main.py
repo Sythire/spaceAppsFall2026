@@ -8,11 +8,11 @@ from __future__ import annotations
 import os
 from datetime import datetime, timezone
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from . import ephemeris
+from . import ephemeris, terrain
 
 MODEL_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "modelResources"))
 # GLB exports of the provided models. The originals (.usdz / 8k .glb) are never modified.
@@ -83,4 +83,27 @@ def scene_series(start: str | None = None, hours: float = Query(720, gt=0, le=24
 
 @app.get("/api/v1/site")
 def site(lat: float = Query(..., ge=-90, le=90), lon: float = Query(..., ge=-180, le=180), utc: str | None = None):
-    return _call(ephemeris.site, lat, lon, _utc(utc))
+    result = _call(ephemeris.site, lat, lon, _utc(utc))
+    result["terrain"] = terrain.site(lat, lon)  # None when the DEM file is missing
+    return result
+
+
+@app.get("/api/v1/terrain/info")
+def terrain_info():
+    if not terrain.available():
+        raise HTTPException(404, "LOLA DEM not found: add modelResources/ldem_16_uint.tif")
+    return terrain.info()
+
+
+@app.get("/api/v1/terrain/elevation.bin")
+def terrain_grid(width: int = Query(1440, ge=90, le=5760)):
+    """Downsampled height grid: little-endian int16 metres above the 1737.4 km sphere, width x width/2,
+    row 0 = 90°N, column 0 = 180°W."""
+    if not terrain.available():
+        raise HTTPException(404, "LOLA DEM not found: add modelResources/ldem_16_uint.tif")
+    try:
+        data, w, h = terrain.grid(width)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return Response(content=data, media_type="application/octet-stream",
+                    headers={"Cache-Control": "max-age=86400", "X-Grid-Width": str(w), "X-Grid-Height": str(h)})

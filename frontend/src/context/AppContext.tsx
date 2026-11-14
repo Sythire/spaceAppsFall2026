@@ -5,7 +5,7 @@ const Context=createContext<AppState|null>(null);
 export function AppProvider({children}:{children:ReactNode}) {
  const [location,setLocationState]=useState<LunarLocation|null>(null);
  const [utc,setUtcState]=useState(new Date().toISOString());
- const [layers,setLayers]=useState<MapLayer[]>(['illumination']);
+ const [layers,setLayers]=useState<MapLayer[]>([]);
  const [selectedSites,setSelectedSites]=useState<LunarLocation[]>([]);
  const [analysis,setAnalysis]=useState<AnalysisResult|null>(null);
  const setLocation=(s:LunarLocation)=>{setLocationState(s);setAnalysis(null);};

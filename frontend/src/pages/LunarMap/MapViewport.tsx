@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pause, Play, Moon, Sun, Crosshair, CalendarCheck } from 'lucide-react';
-import type { LunarLocation, MapLayer, SceneSeries, SiteGeometry, Vec3 } from '../../types';
+import type { LunarLocation, MapLayer, SceneSeries, SiteGeometry, TerrainGrid, Vec3 } from '../../types';
 import { modelUrl, sceneService } from '../../services/sceneService';
-import { MoonScene, type ModelStatus, type ScaleMode } from './scene/MoonScene';
+import { ELEVATION_STOPS, MoonScene, type ModelStatus, type ScaleMode } from './scene/MoonScene';
 import { formatCountdown, formatUtc, sampleAt } from '../../utils/sceneTime';
 
 export interface MapViewportProps {
@@ -28,7 +28,18 @@ const subPoint = (v: Vec3) => {
 const fmtLatLon = (lat: number, lon: number) => `${Math.abs(lat).toFixed(2)}° ${lat >= 0 ? 'N' : 'S'}, ${Math.abs(lon).toFixed(2)}° ${lon >= 0 ? 'E' : 'W'}`;
 const deg = (v: number) => v.toFixed(2) + '°';
 
-export function MapViewport({ location, onSelect, utc, onUtcChange, markers }: MapViewportProps) {
+/** View settings remembered across reloads in this browser (falls back to defaults if storage is blocked). */
+const PREFS_KEY = 'lunarsite.explorer.prefs.v1';
+interface ViewPrefs { scale: ScaleMode; grid: boolean; paths: boolean; labels: boolean; speed: number; exaggeration: number; }
+const DEFAULT_PREFS: ViewPrefs = { scale: 'compact', grid: false, paths: true, labels: true, speed: 6, exaggeration: 5 };
+const EXAGGERATIONS = [1, 2, 5, 10, 20];
+function loadPrefs(): ViewPrefs {
+ try { return { ...DEFAULT_PREFS, ...(JSON.parse(localStorage.getItem(PREFS_KEY) ?? '{}') as Partial<ViewPrefs>) }; }
+ catch { return DEFAULT_PREFS; }
+}
+const initialPrefs = loadPrefs();
+
+export function MapViewport({ location, layers, onSelect, utc, onUtcChange, markers }: MapViewportProps) {
  const containerRef = useRef<HTMLDivElement>(null);
  const engineRef = useRef<MoonScene | null>(null);
  const markersRef = useRef(markers);
@@ -40,11 +51,16 @@ export function MapViewport({ location, onSelect, utc, onUtcChange, markers }: M
  const [attempt, setAttempt] = useState(0);
  const [playhead, setPlayhead] = useState(0);
  const [playing, setPlaying] = useState(false);
- const [speed, setSpeed] = useState(6);
- const [scale, setScale] = useState<ScaleMode>('compact');
- const [grid, setGrid] = useState(false);
- const [paths, setPaths] = useState(true);
- const [labels, setLabels] = useState(true);
+ const [speed, setSpeed] = useState(initialPrefs.speed);
+ const [scale, setScale] = useState<ScaleMode>(initialPrefs.scale);
+ const [grid, setGrid] = useState(initialPrefs.grid);
+ const [paths, setPaths] = useState(initialPrefs.paths);
+ const [labels, setLabels] = useState(initialPrefs.labels);
+ const [exaggeration, setExaggeration] = useState(initialPrefs.exaggeration);
+ const [terrain, setTerrain] = useState<TerrainGrid | null>(null);
+ const [terrainState, setTerrainState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+ const elevationOn = layers.includes('elevation');
+ const illuminationOn = layers.includes('illumination');
  const [models, setModels] = useState<ModelStatus | null>(null);
  const [siteGeo, setSiteGeo] = useState<SiteGeometry | null>(null);
  const [siteError, setSiteError] = useState('');
@@ -87,6 +103,21 @@ export function MapViewport({ location, onSelect, utc, onUtcChange, markers }: M
 
  useEffect(() => { if (sample) engineRef.current?.setSample(sample); }, [sample]);
  useEffect(() => { engineRef.current?.setOptions({ scale, grid, paths, labels }); }, [scale, grid, paths, labels]);
+ useEffect(() => {
+  try { localStorage.setItem(PREFS_KEY, JSON.stringify({ scale, grid, paths, labels, speed, exaggeration })); } catch { /* storage unavailable */ }
+ }, [scale, grid, paths, labels, speed, exaggeration]);
+
+ // Data layers. The LOLA grid is fetched once, the first time Elevation is switched on.
+ useEffect(() => {
+  if (!elevationOn || terrain || terrainState === 'loading') return;
+  setTerrainState('loading');
+  sceneService.elevation(1440)
+   .then(g => { setTerrain(g); setTerrainState('ready'); })
+   .catch(() => setTerrainState('error'));
+ }, [elevationOn, terrain, terrainState]);
+ useEffect(() => { if (terrain) engineRef.current?.setTerrain(terrain); }, [terrain]);
+ useEffect(() => { engineRef.current?.setExaggeration(exaggeration); }, [exaggeration]);
+ useEffect(() => { engineRef.current?.setLayers(layers); }, [layers]);
  useEffect(() => { engineRef.current?.setMarkers(markers, location?.id ?? null); }, [markers, location?.id]);
  useEffect(() => {
   engineRef.current?.setSite(lat ?? null, lon ?? null);
@@ -159,6 +190,26 @@ export function MapViewport({ location, onSelect, utc, onUtcChange, markers }: M
      {location && <button type="button" onClick={() => engineRef.current?.flyTo(location.latitudeDeg, location.longitudeDeg)}><Crosshair size={12} aria-hidden /> Site</button>}
     </div>
    </div>
+   {(elevationOn || illuminationOn) && <div className="layer-legends">
+    {elevationOn && <div className="layer-legend">
+     <strong>Elevation (LOLA)</strong>
+     {terrainState === 'loading' && <span>Loading LOLA heights…</span>}
+     {terrainState === 'error' && <span role="alert">Elevation data unavailable (is ldem_16_uint.tif in modelResources?)</span>}
+     {terrainState === 'ready' && <>
+      <div className="legend-bar" style={{ background: `linear-gradient(90deg, ${ELEVATION_STOPS.map(([h, c]) => `${c} ${((h + 9000) / 19700) * 100}%`).join(', ')})` }} />
+      <div className="legend-scale positioned"><span style={{ left: '0%' }}>−9 km</span><span style={{ left: '45.7%' }}>0</span><span style={{ left: '100%' }}>+10.7 km</span></div>
+      <label>Relief exaggeration<select value={exaggeration} onChange={e => setExaggeration(Number(e.target.value))}>
+       {EXAGGERATIONS.map(x => <option key={x} value={x}>×{x}{x === 1 ? ' (true scale)' : ''}</option>)}</select></label>
+      <small>Heights relative to the 1737.4 km mean sphere · 16 px/deg (~1.9 km)</small>
+     </>}
+    </div>}
+    {illuminationOn && <div className="layer-legend">
+     <strong>Illumination · solar elevation</strong>
+     <div className="legend-bar" style={{ background: 'linear-gradient(90deg, #0f1f6b 0%, #0f1f6b 12%, #fff1a0 12%, #fff1a0 14%, #f25914 14%, #ffc733 40%, #fffad9 100%)' }} />
+     <div className="legend-scale positioned"><span style={{ left: '0%' }}>Night</span><span style={{ left: '13%' }}>0°</span><span style={{ left: '40%' }}>20°</span><span style={{ left: '100%' }}>90°</span></div>
+     <small>Live for the viewed time · white lines every 10° · mean-sphere horizon, no terrain shadows</small>
+    </div>}
+   </div>}
    <div className="scene-legend" aria-hidden>
     <span><i className="orbit" />Earth / Mars orbits · Moon path</span><span><i className="sun" />Sun direction</span><span><i className="earth" />Earth direction</span><span><i className="horizon" />Local horizon</span>
    </div>
@@ -204,9 +255,11 @@ export function MapViewport({ location, onSelect, utc, onUtcChange, markers }: M
     <article className="metric"><span>Sub-solar · sub-Earth point</span>
      <strong className="small-strong">{subSolar ? fmtLatLon(subSolar.lat, subSolar.lon) : '—'}</strong>
      <small>Sub-Earth {subEarth ? fmtLatLon(subEarth.lat, subEarth.lon) : '—'} · offset from 0°,0° is libration</small></article>
-    <article className="metric metric-unavailable"><span>Slope · temperature · PSR</span>
-     <strong className="small-strong">Not available</strong>
-     <small>No LOLA terrain, Diviner thermal or PSR product is loaded. Unknown is not "false".</small></article>
+    <article className={'metric' + (siteGeo?.terrain ? '' : ' metric-unavailable')}><span>Terrain · LOLA</span>
+     <strong className="small-strong">{siteGeo?.terrain ? `Slope ${siteGeo.terrain.regionalSlopeDeg.toFixed(1)}°` : location ? 'Not available' : '—'}</strong>
+     <small>{siteGeo?.terrain
+      ? `Elevation ${(siteGeo.terrain.elevationM / 1000).toFixed(2)} km · slope over ~${siteGeo.terrain.baselineKm.toFixed(1)} km (lander-scale slopes can be steeper) · Temperature & PSR: not available (no Diviner/PSR product)`
+      : 'Elevation and regional slope need the LOLA DEM. Temperature & PSR: not available.'}</small></article>
    </div>
    {siteError && <p role="alert">{siteError}</p>}
    <p className="scene-source">

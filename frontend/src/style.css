@@ -32,3 +32,11 @@ code{font-size:11px;background:#0a131e;padding:1px 5px;border-radius:3px;color:#
 .scene-legend .orbit{background:#9fb4c6;height:1px}
 .scene-label-moon{color:#e6e6e6;border-color:#4a5a6a}
 .status-live{color:#9fd3c7}.status-live i{background:#6fcf97}
+.layer-legends{position:absolute;left:14px;bottom:14px;z-index:2;display:grid;gap:8px;max-width:270px}
+.layer-legend{background:#0b111bdd;border:1px solid #28384b;border-radius:7px;padding:10px 12px;font-size:10px;color:#a9bccd;display:grid;gap:5px}
+.layer-legend strong{font-size:11px;color:#dbe5ef;font-weight:550}.layer-legend small{font-size:9px;color:#7f97ad}
+.layer-legend label{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:10px}.layer-legend select{padding:3px 6px;font-size:10px}
+.legend-bar{height:9px;border-radius:3px;border:1px solid #2e4257}
+.legend-scale{display:flex;justify-content:space-between;font-size:9px;color:#8fa6bb}
+.legend-scale.positioned{position:relative;height:13px;margin:0 10px}.legend-scale.positioned span{position:absolute;transform:translateX(-50%);white-space:nowrap}
+@media(max-width:760px){.layer-legends{max-width:180px;left:8px;bottom:8px}}

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { CSS2DObject, CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
-import type { ModelManifest, SceneSample, SpiceQuat, Vec3 } from '../../../types';
+import type { MapLayer, ModelManifest, SceneSample, SpiceQuat, TerrainGrid, Vec3 } from '../../../types';
 
 /**
  * Sun-centric three.js scene focused on the Moon.
@@ -27,6 +27,8 @@ const COMPACT = { auUnits: 60, moonOffset: 7, radius: { sun: 5, earth: 1.4, mars
 const FALLBACK_COLOR: Record<BodyKey | 'moon', number> = { moon: 0x8a8a8a, earth: 0x2f6fb5, mars: 0xb5532f, sun: 0xffd27a };
 const SPICE_TO_THREE = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
 const THREE_TO_SPICE = SPICE_TO_THREE.clone().invert();
+/** Browser storage key for the last camera position (Moon-fixed), so reloads keep the view. */
+const CAMERA_KEY = 'lunarsite.explorer.camera.v1';
 
 /** SPICE (X, Y, Z-up) vector to three.js (Y-up). Used for both MOON_ME and ECLIPJ2000 vectors. */
 export function moonMeToThree(v: Vec3): THREE.Vector3 { return new THREE.Vector3(v[0], v[2], -v[1]); }
@@ -43,6 +45,56 @@ function spiceQuatToThree(q: SpiceQuat): THREE.Quaternion {
  const [w, x, y, z] = q;
  return SPICE_TO_THREE.clone().multiply(new THREE.Quaternion(x, y, z, w)).multiply(THREE_TO_SPICE);
 }
+
+/** Elevation colour stops (metres above the 1737.4 km sphere): deep basins blue through highlands orange/white. */
+export const ELEVATION_STOPS: [number, string][] = [
+ [-9000, '#2c3f97'], [-5000, '#2f86c4'], [-2000, '#4fb7a5'], [0, '#8fcf6a'], [2500, '#f0d55c'], [5500, '#e8913b'], [8000, '#c8553d'], [10700, '#ffffff'],
+];
+const ELEV_COLORS = ELEVATION_STOPS.map(([h, c]) => [h, new THREE.Color(c)] as const);
+function elevationColor(h: number, out: THREE.Color): THREE.Color {
+ if (h <= ELEV_COLORS[0][0]) return out.copy(ELEV_COLORS[0][1]);
+ for (let i = 1; i < ELEV_COLORS.length; i++) {
+  const [h1, c1] = ELEV_COLORS[i];
+  if (h <= h1) { const [h0, c0] = ELEV_COLORS[i - 1]; return out.copy(c0).lerp(c1, (h - h0) / (h1 - h0)); }
+ }
+ return out.copy(ELEV_COLORS[ELEV_COLORS.length - 1][1]);
+}
+
+/** Solar-elevation overlay: colour by Sun elevation above the local mean-sphere horizon, with 10 degree contours. */
+const ILLUMINATION_VERTEX = [
+ '#include <common>',
+ '#include <logdepthbuf_pars_vertex>',
+ 'uniform float uLift;',
+ 'varying vec3 vDir;',
+ 'void main() {',
+ ' vDir = normalize(position);',
+ ' vec3 p = position + vDir * uLift;',
+ ' gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);',
+ ' #include <logdepthbuf_vertex>',
+ '}',
+].join('\n');
+const ILLUMINATION_FRAGMENT = [
+ '#include <logdepthbuf_pars_fragment>',
+ 'uniform vec3 uSun;',
+ 'varying vec3 vDir;',
+ 'void main() {',
+ ' #include <logdepthbuf_fragment>',
+ ' float el = degrees(asin(clamp(dot(normalize(vDir), uSun), -1.0, 1.0)));',
+ ' vec4 c;',
+ ' if (el < 0.0) {',
+ '  c = vec4(0.06, 0.12, 0.42, 0.5);',
+ ' } else {',
+ '  vec3 low = vec3(0.95, 0.35, 0.08), mid = vec3(1.0, 0.78, 0.2), high = vec3(1.0, 0.98, 0.85);',
+ '  vec3 col = el < 20.0 ? mix(low, mid, el / 20.0) : mix(mid, high, clamp((el - 20.0) / 70.0, 0.0, 1.0));',
+ '  c = vec4(col, 0.38);',
+ ' }',
+ ' float contour = 1.0 - smoothstep(0.0, 0.35, abs(mod(el + 5.0, 10.0) - 5.0));',
+ ' c = mix(c, vec4(1.0, 1.0, 1.0, 0.55), contour * step(0.0, el) * 0.6);',
+ ' float terminator = 1.0 - smoothstep(0.0, 0.6, abs(el));',
+ ' c = mix(c, vec4(1.0, 0.95, 0.6, 0.95), terminator);',
+ ' gl_FragColor = c;',
+ '}',
+].join('\n');
 
 export interface SceneMarker { id: string; name: string; latitudeDeg: number; longitudeDeg: number; }
 export interface SceneOptions { grid: boolean; paths: boolean; labels: boolean; scale: ScaleMode; }
@@ -83,6 +135,23 @@ export class MoonScene {
  private disposed = false;
  private framed = false;
  private moonLabel!: CSS2DObject;
+ private lastSave = 0;
+ // ---- data layers ----
+ private layers: MapLayer[] = [];
+ private terrain: TerrainGrid | null = null;
+ private exaggeration = 5;
+ private terrainMesh: THREE.Mesh | null = null;
+ private terrainDirs: Float32Array | null = null;
+ private terrainHeights: Float32Array | null = null;
+ private moonTexture: THREE.Texture | null = null;
+ private sphereGeometry: THREE.BufferGeometry = new THREE.SphereGeometry(1, 256, 128);
+ private illumination: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial> = new THREE.Mesh(this.sphereGeometry, new THREE.ShaderMaterial({
+  uniforms: { uSun: { value: new THREE.Vector3(1, 0, 0) }, uLift: { value: 0.0015 } },
+  vertexShader: ILLUMINATION_VERTEX, fragmentShader: ILLUMINATION_FRAGMENT,
+  transparent: true, depthWrite: false,
+ }));
+ private markerArgs: { markers: SceneMarker[]; selectedId: string | null } = { markers: [], selectedId: null };
+ private siteArgs: { lat: number | null; lon: number | null } = { lat: null, lon: null };
 
  constructor(private container: HTMLElement, private onPick: (lat: number, lon: number) => void,
   private onMarker: (id: string) => void, private onModelStatus: (status: ModelStatus) => void) {
@@ -95,7 +164,7 @@ export class MoonScene {
   container.appendChild(this.labelRenderer.domElement);
 
   this.camera = new THREE.PerspectiveCamera(45, 1, 0.001, 5e6);
-  this.camera.position.set(0, 3, 9);
+  this.camera.position.set(0, 0.9, 2.55);
   this.controls = new OrbitControls(this.camera, this.renderer.domElement);
   this.controls.enableDamping = true;
   this.controls.minDistance = 1.08;
@@ -103,6 +172,8 @@ export class MoonScene {
   this.controls.rotateSpeed = 0.5;
   this.controls.zoomSpeed = 0.8;
   this.controls.target.set(0, 0, 0); // the Moon
+  this.controls.addEventListener('change', this.saveCameraSoon);
+  window.addEventListener('pagehide', this.saveCamera);
 
   this.scene.background = new THREE.Color(0x02040a);
   // Faint fill so the night side is not pure black; the Sun's directional light sets the real terminator.
@@ -127,6 +198,9 @@ export class MoonScene {
    earth: new THREE.ArrowHelper(new THREE.Vector3(0, 1, 0), new THREE.Vector3(), 0.35, 0x6fb7ff, 0.06, 0.035),
   };
   this.buildSite();
+  this.illumination.visible = false;
+  this.illumination.renderOrder = 2;
+  this.moonFrame.add(this.illumination);
 
   const el = this.renderer.domElement;
   el.addEventListener('pointerdown', this.handleDown);
@@ -163,15 +237,20 @@ export class MoonScene {
     const gltf = await loader.loadAsync(resolve(path));
     if (this.disposed) return;
     const model = gltf.scene;
-    // Normalize to unit radius around the origin so the export's units do not matter.
-    const sphere = new THREE.Box3().setFromObject(model).getBoundingSphere(new THREE.Sphere());
-    model.position.sub(sphere.center);
+    // Normalize to unit radius around the origin so the export's units do not matter. Use half the
+    // bounding box's largest side: for a sphere that is its radius (the box's bounding sphere is √3 too big).
+    const box = new THREE.Box3().setFromObject(model);
+    const size = box.getSize(new THREE.Vector3());
+    model.position.sub(box.getCenter(new THREE.Vector3()));
     const wrapper = new THREE.Group();
     wrapper.add(model);
-    wrapper.scale.setScalar(1 / sphere.radius);
+    wrapper.scale.setScalar(2 / Math.max(size.x, size.y, size.z));
     if (key === 'moon') model.traverse(o => {
      const mesh = o as THREE.Mesh;
-     if (mesh.isMesh) this.capTexture((mesh.material as THREE.MeshStandardMaterial).map);
+     if (!mesh.isMesh) return;
+     const map = (mesh.material as THREE.MeshStandardMaterial).map;
+     this.capTexture(map);
+     if (map) this.moonTexture = map;
     });
     if (key === 'sun') model.traverse(o => {
      const mesh = o as THREE.Mesh;
@@ -185,6 +264,7 @@ export class MoonScene {
     parent.children.filter(c => c.name === 'fallback').forEach(c => parent.remove(c));
     parent.add(wrapper);
     status[key] = 'model';
+    if (key === 'moon') this.applyLayers();
    } catch {
     status[key] = 'fallback';
    }
@@ -265,7 +345,8 @@ export class MoonScene {
   this.grid.visible = this.options.grid;
   this.paths.visible = this.options.paths;
   for (const l of this.labels) l.visible = this.options.labels;
-  if (scaleChanged) { this.applyScale(); this.buildPaths(); this.applySample(); this.resetView(); }
+  // Only re-frame on a user change; the initial (possibly restored) scale must not override a saved view.
+  if (scaleChanged) { this.applyScale(); this.buildPaths(); this.applySample(); if (this.sample) this.resetView(); }
   this.applySample();
  }
 
@@ -277,14 +358,19 @@ export class MoonScene {
  setSample(sample: SceneSample) {
   this.sample = sample;
   this.applySample();
-  if (!this.framed && !this.flight && !this.site.visible) { this.camera.position.copy(this.moonViewPosition()); this.framed = true; }
+  if (!this.framed && !this.flight) {
+   this.camera.position.copy(this.restoredCamera() ?? this.moonViewPosition());
+   this.framed = true;
+  }
  }
 
  setMarkers(markers: SceneMarker[], selectedId: string | null) {
+  this.markerArgs = { markers, selectedId };
   this.markers.clear();
   this.surfaceLabels = this.surfaceLabels.filter(l => l.grid);
   for (const m of markers) {
-   const p = latLonToThree(m.latitudeDeg, m.longitudeDeg, 1.003);
+   const r = this.surfaceRadius(m.latitudeDeg, m.longitudeDeg);
+   const p = latLonToThree(m.latitudeDeg, m.longitudeDeg, r + 0.003);
    const dot = new THREE.Mesh(new THREE.SphereGeometry(0.012, 16, 12),
     new THREE.MeshBasicMaterial({ color: m.id === selectedId ? 0xe2bd7c : 0x7fe0d0 }));
    dot.position.copy(p);
@@ -298,7 +384,7 @@ export class MoonScene {
    div.className = 'scene-label scene-label-site';
    div.textContent = m.name;
    const label = new CSS2DObject(div);
-   label.position.copy(p.clone().multiplyScalar(1.01));
+   label.position.copy(p.clone().multiplyScalar((r + 0.01) / (r + 0.003)));
    label.center.set(-0.08, 0.5);
    this.surfaceLabels.push({ label, grid: false });
    this.markers.add(dot, glow, label);
@@ -306,14 +392,111 @@ export class MoonScene {
  }
 
  setSite(lat: number | null, lon: number | null) {
+  this.siteArgs = { lat, lon };
   if (lat === null || lon === null) { this.site.visible = false; return; }
   const up = latLonToThree(lat, lon, 1);
   this.site.visible = true;
-  this.site.position.copy(up.clone().multiplyScalar(1.002));
+  this.site.position.copy(up.clone().multiplyScalar(this.surfaceRadius(lat, lon) + 0.002));
   const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), up);
   this.site.getObjectByName('ring')!.quaternion.copy(q);
   this.site.getObjectByName('horizon')!.quaternion.copy(q);
   this.applySample();
+ }
+
+ // ---------- data layers ----------
+ /** Which overlays are on. 'elevation' needs setTerrain() data; 'illumination' is computed live from the Sun. */
+ setLayers(layers: MapLayer[]) { this.layers = layers; this.applyLayers(); }
+
+ setTerrain(grid: TerrainGrid) { this.terrain = grid; this.terrainMesh = null; this.applyLayers(); }
+
+ /** Vertical exaggeration of the LOLA relief (1 = true scale). */
+ setExaggeration(x: number) {
+  this.exaggeration = x;
+  if (this.terrainMesh) this.displaceTerrain();
+  this.refreshSurfaceObjects();
+ }
+
+ private get elevationOn() { return this.layers.includes('elevation') && this.terrain !== null; }
+
+ private applyLayers() {
+  const elev = this.elevationOn;
+  if (elev && !this.terrainMesh) this.buildTerrain();
+  if (this.terrainMesh) {
+   const mat = this.terrainMesh.material as THREE.MeshStandardMaterial;
+   if (mat.map !== this.moonTexture) { mat.map = this.moonTexture; mat.color.set(this.moonTexture ? 0xffffff : FALLBACK_COLOR.moon); mat.needsUpdate = true; }
+  }
+  for (const child of this.moon.children) child.visible = elev ? child === this.terrainMesh : child !== this.terrainMesh;
+  this.illumination.visible = this.layers.includes('illumination');
+  this.illumination.geometry = elev && this.terrainMesh ? this.terrainMesh.geometry : this.sphereGeometry;
+  this.refreshSurfaceObjects();
+ }
+
+ /** Re-seat pings, the site and the grid on the (possibly raised) surface. */
+ private refreshSurfaceObjects() {
+  this.setMarkers(this.markerArgs.markers, this.markerArgs.selectedId);
+  if (this.siteArgs.lat !== null) this.setSite(this.siteArgs.lat, this.siteArgs.lon);
+  this.grid.scale.setScalar(this.elevationOn ? 1 + (10800 / (MOON_RADIUS_KM * 1000)) * this.exaggeration : 1);
+ }
+
+ /** Bilinear LOLA height (m) at a lat/lon; 0 without terrain. */
+ private heightAt(lat: number, lon: number): number {
+  const g = this.terrain;
+  if (!g) return 0;
+  const x = ((lon + 180) / 360) * g.width - 0.5, y = ((90 - lat) / 180) * g.height - 0.5;
+  const x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0;
+  const wrap = (c: number) => ((c % g.width) + g.width) % g.width;
+  const clampY = (r: number) => Math.min(g.height - 1, Math.max(0, r));
+  const v = (r: number, c: number) => g.heightsM[clampY(r) * g.width + wrap(c)];
+  return (v(y0, x0) * (1 - fx) + v(y0, x0 + 1) * fx) * (1 - fy) + (v(y0 + 1, x0) * (1 - fx) + v(y0 + 1, x0 + 1) * fx) * fy;
+ }
+
+ private surfaceRadius(lat: number, lon: number): number {
+  return this.elevationOn ? 1 + (this.heightAt(lat, lon) / (MOON_RADIUS_KM * 1000)) * this.exaggeration : 1;
+ }
+
+ /** Sphere displaced by LOLA heights, tinted by elevation and textured with the Moon model's imagery. */
+ private buildTerrain() {
+  const g = this.terrain;
+  if (!g) return;
+  const geometry = new THREE.SphereGeometry(1, 720, 360);
+  const pos = geometry.attributes.position as THREE.BufferAttribute;
+  const uv = geometry.attributes.uv as THREE.BufferAttribute;
+  const n = pos.count;
+  this.terrainDirs = new Float32Array(n * 3);
+  this.terrainHeights = new Float32Array(n);
+  const colors = new Float32Array(n * 3);
+  const c = new THREE.Color(), white = new THREE.Color(1, 1, 1), dir = new THREE.Vector3();
+  for (let i = 0; i < n; i++) {
+   dir.fromBufferAttribute(pos, i).normalize();
+   this.terrainDirs[i * 3] = dir.x; this.terrainDirs[i * 3 + 1] = dir.y; this.terrainDirs[i * 3 + 2] = dir.z;
+   const ll = threeToLatLon(dir);
+   const h = this.heightAt(ll.latitudeDeg, ll.longitudeDeg);
+   this.terrainHeights[i] = h;
+   elevationColor(h, c).lerp(white, 0.25);
+   colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
+   uv.setY(i, 1 - uv.getY(i)); // glTF textures are not flipped; match the model's equirectangular UVs
+  }
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  this.terrainMesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({
+   map: this.moonTexture, color: this.moonTexture ? 0xffffff : FALLBACK_COLOR.moon, vertexColors: true, roughness: 0.95, metalness: 0,
+  }));
+  this.terrainMesh.name = 'terrain';
+  this.displaceTerrain();
+  this.moon.add(this.terrainMesh);
+ }
+
+ private displaceTerrain() {
+  const mesh = this.terrainMesh, dirs = this.terrainDirs, hs = this.terrainHeights;
+  if (!mesh || !dirs || !hs) return;
+  const pos = mesh.geometry.attributes.position as THREE.BufferAttribute;
+  const k = this.exaggeration / (MOON_RADIUS_KM * 1000);
+  for (let i = 0; i < hs.length; i++) {
+   const r = 1 + hs[i] * k;
+   pos.setXYZ(i, dirs[i * 3] * r, dirs[i * 3 + 1] * r, dirs[i * 3 + 2] * r);
+  }
+  pos.needsUpdate = true;
+  mesh.geometry.computeVertexNormals(); // real relief shading from the actual Sun direction
+  mesh.geometry.computeBoundingSphere();
  }
 
  /** Fly to look straight down on a lunar site; the site's direction follows the Moon's current attitude. */
@@ -323,9 +506,10 @@ export class MoonScene {
   this.flight = { from: this.camera.position.clone(), to, t: 0 };
  }
 
- /** Close Moon view from the sunlit side, tilted toward ecliptic north, with Earth roughly in frame. */
+ /** Moon filling the view, seen from the sunlit side and tilted toward ecliptic north. */
  private moonViewPosition(): THREE.Vector3 {
-  const dist = this.options.scale === 'true' ? 6 : 12;
+  // Close enough that the Moon fills the view (its radius is 1 unit; half the 45° field of view fits ~2.6).
+  const dist = 2.7;
   const s = this.sample;
   if (!s) return new THREE.Vector3(0, 0.4, 1).normalize().multiplyScalar(dist);
   const toSun = moonMeToThree(s.helio.moon).negate().normalize();
@@ -345,7 +529,35 @@ export class MoonScene {
   this.flight = { from: this.camera.position.clone(), to: toSun.multiplyScalar(0.35).add(new THREE.Vector3(0, 1, 0)).normalize().multiplyScalar(dist), t: 0 };
  }
 
+ /** Camera position saved relative to the Moon's surface, rotated into the current Moon attitude. */
+ private restoredCamera(): THREE.Vector3 | null {
+  try {
+   const saved = JSON.parse(localStorage.getItem(CAMERA_KEY) ?? 'null') as { x: number; y: number; z: number } | null;
+   if (!saved || ![saved.x, saved.y, saved.z].every(Number.isFinite)) return null;
+   const v = new THREE.Vector3(saved.x, saved.y, saved.z);
+   const len = v.length();
+   if (len < this.controls.minDistance || len > this.controls.maxDistance) return null;
+   return v.applyQuaternion(this.moonFrame.quaternion);
+  } catch { return null; }
+ }
+
+ private saveCamera = () => {
+  if (!this.framed) return; // don't overwrite a saved view before it has been restored
+  const local = this.camera.position.clone().applyQuaternion(this.moonFrame.quaternion.clone().invert());
+  try { localStorage.setItem(CAMERA_KEY, JSON.stringify({ x: local.x, y: local.y, z: local.z })); } catch { /* storage unavailable */ }
+ };
+
+ private saveCameraSoon = () => {
+  const now = performance.now();
+  if (now - this.lastSave < 400) return;
+  this.lastSave = now;
+  this.saveCamera();
+ };
+
  dispose() {
+  this.saveCamera();
+  window.removeEventListener('pagehide', this.saveCamera);
+  this.controls.removeEventListener('change', this.saveCameraSoon);
   this.disposed = true;
   cancelAnimationFrame(this.frame);
   this.resizeObserver.disconnect();
@@ -417,6 +629,7 @@ export class MoonScene {
   const toSun = moonMeToThree(s.helio.moon).negate().normalize();
   this.sunLight.position.copy(toSun.multiplyScalar(50));
   this.sunLight.target.position.set(0, 0, 0);
+  (this.illumination.material as THREE.ShaderMaterial).uniforms.uSun.value.copy(moonMeToThree(s.sun).normalize());
   if (this.site.visible) {
    // Site arrows live in the Moon-fixed group, so use the Moon-fixed (MOON_ME) vectors directly.
    const sitePos = this.site.position;
@@ -437,7 +650,8 @@ export class MoonScene {
   this.raycaster.setFromCamera(ndc, this.camera);
   const markerHit = this.raycaster.intersectObjects(this.markers.children.filter(c => c.userData.markerId), false)[0];
   if (markerHit) { this.onMarker(markerHit.object.userData.markerId as string); return; }
-  const hit = this.raycaster.intersectObject(this.moon, true)[0];
+  const pickTarget = this.elevationOn && this.terrainMesh ? this.terrainMesh : this.moon;
+  const hit = this.raycaster.intersectObject(pickTarget, true).find(h => h.object.visible);
   if (hit) {
    const ll = threeToLatLon(this.moonFrame.worldToLocal(hit.point.clone()));
    this.onPick(ll.latitudeDeg, ll.longitudeDeg);

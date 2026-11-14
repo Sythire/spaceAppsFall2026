@@ -32,5 +32,10 @@ export interface SiteGeometry {
  source: string; horizonMethod: string; searchWindowDays: number; azimuthConvention: string;
  sun: BodyEvents; earth: BodyEvents;
  power: { solarFluxWm2: number; horizontalPanelWm2: number; assumptions: string };
+ terrain: SiteTerrain | null;
 }
+/** LOLA DEM values at a site; null when the DEM file is not present. */
+export interface SiteTerrain { elevationM: number; regionalSlopeDeg: number; baselineKm: number; source: string; note: string; }
+/** Downsampled LOLA height grid: metres above the 1737.4 km sphere; row 0 = 90°N, column 0 = 180°W. */
+export interface TerrainGrid { width: number; height: number; heightsM: Int16Array; }
 export interface ModelManifest { moon: string | null; earth: string | null; sun: string | null; mars: string | null; }

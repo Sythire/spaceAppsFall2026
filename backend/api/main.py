@@ -13,7 +13,7 @@ from fastapi import FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from . import analysis, catalog, ephemeris, terrain
+from . import analysis, catalog, data_products, ephemeris, power_comms, terrain
 from .schemas import AnalysisRequest, ComparisonRequest
 
 MODEL_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "modelResources"))
@@ -109,6 +109,10 @@ def scene_series(start: Optional[str] = None, hours: float = Query(720, gt=0, le
 def site(lat: float = Query(..., ge=-90, le=90), lon: float = Query(..., ge=-180, le=180), utc: Optional[str] = None):
     result = _call(ephemeris.site, lat, lon, _utc(utc))
     result["terrain"] = terrain.site(lat, lon)
+    if result["terrain"] is not None:
+        result["terrain"]["permanentlyShadowed"] = data_products.psr_at(lat, lon)
+        result["terrain"]["psrSource"] = data_products.PSR_SOURCE if data_products.psr_available() else None
+    result["thermal"] = data_products.thermal_at(lat, lon)
     return result
 
 
@@ -119,8 +123,16 @@ def sites():
 
 @app.get("/api/v1/map/layers")
 def layers():
-    return [{**layer, "available": terrain.available() if layer["id"] == "elevation"
-             else layer["id"] == "illumination"} for layer in catalog.LAYERS]
+    terrain_layers = {"elevation", "power", "earth-visibility"}  # these need the LOLA DEM
+    def available(layer_id: str) -> bool:
+        if layer_id in terrain_layers:
+            return terrain.available()
+        if layer_id == "psr":
+            return data_products.psr_available()
+        if layer_id == "thermal":
+            return data_products.thermal_available()
+        return layer_id == "illumination"
+    return [{**layer, "available": available(layer["id"])} for layer in catalog.LAYERS]
 
 
 @app.get("/api/v1/data/sources")
@@ -162,3 +174,76 @@ def terrain_grid(width: int = Query(1440, ge=90, le=5760)):
         raise HTTPException(422, str(exc)) from exc
     return Response(content=data, media_type="application/octet-stream",
                     headers={"Cache-Control": "max-age=86400", "X-Grid-Width": str(w), "X-Grid-Height": str(h)})
+
+
+# ---------------------------------------------------------------- terrain-aware power & communication
+def _equipment(panelTilt: float, panelHeight: float, commMask: float, commHeight: float) -> power_comms.Equipment:
+    return power_comms.Equipment(panel_tilt_deg=panelTilt, panel_height_m=panelHeight,
+                                 comm_mask_deg=commMask, comm_height_m=commHeight)
+
+
+def _planning_call(fn, *args):
+    if not terrain.available():
+        raise HTTPException(404, "LOLA DEM not found: add modelResources/ldem_16_uint.tif")
+    try:
+        return _call(fn, *args)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.get("/api/v1/coverage/map")
+def coverage_map(grid: str = Query("global", pattern="^(global|southpole)$"),
+                 kind: str = Query("power", pattern="^(power|sunlit|comms)$"),
+                 mode: str = Query("instant", pattern="^(instant|monthly)$"), utc: Optional[str] = None,
+                 panelTilt: float = 0.0, panelHeight: float = 1.0, commMask: float = 0.0, commHeight: float = 1.0):
+    """Terrain-aware power / sunlight / Earth-visibility map. valuesF32 is base64 little-endian float32,
+    row-major in the grid layout described by `layout` (NaN outside the grid's valid area)."""
+    return _planning_call(power_comms.coverage_map, grid, kind, mode, _utc(utc),
+                          _equipment(panelTilt, panelHeight, commMask, commHeight))
+
+
+@app.get("/api/v1/coverage/site")
+def coverage_site(lat: float = Query(..., ge=-90, le=90), lon: float = Query(..., ge=-180, le=180), utc: Optional[str] = None,
+                  days: float = Query(30, gt=0, le=60), stepHours: float = Query(1, ge=0.25, le=24),
+                  panelTilt: float = 0.0, panelHeight: float = 1.0, commMask: float = 0.0, commHeight: float = 1.0):
+    """Hour-by-hour terrain-aware power and Earth visibility at one site with summary statistics."""
+    if days * 24 / stepHours > 6000:
+        raise HTTPException(422, "Too many samples; increase stepHours or reduce days")
+    return _planning_call(power_comms.site_series, lat, lon, _utc(utc), days, stepHours,
+                          _equipment(panelTilt, panelHeight, commMask, commHeight))
+
+
+# ---------------------------------------------------------------- measured map products
+@app.get("/api/v1/products/psr")
+def psr_map():
+    """Official LOLA permanent-shadow map, resampled to the frontend's polar grid (fraction per cell)."""
+    if not data_products.psr_available():
+        raise HTTPException(404, "PSR map not found: add modelResources/LPSR_75S_120M_201608.TIF")
+    return data_products.psr_grid()
+
+
+@app.get("/api/v1/products/thermal")
+def thermal_map(product: str = Query("daymax", pattern="^(daymax|nightmin)$")):
+    """LRO Diviner bolometric temperature composite (K), global equirectangular 4 px/deg."""
+    if not data_products.thermal_available():
+        raise HTTPException(404, "Diviner maps not found: add modelResources/diviner/dgdr_tbol_avg_cyl_*_004_img.img")
+    return data_products.thermal_grid(product)
+
+
+@app.get("/api/v1/recommendations")
+def recommendations_get():
+    return []
+
+
+@app.post("/api/v1/recommendations")
+def recommendations(request: AnalysisRequest):
+    """No site-suitability model has been agreed, so no recommendations are made (an empty list, not a guess)."""
+    return []
+
+
+@app.get("/api/v1/coverage/events")
+def coverage_events(lat: float = Query(..., ge=-90, le=90), lon: float = Query(..., ge=-180, le=180), utc: Optional[str] = None,
+                    panelTilt: float = 0.0, panelHeight: float = 1.0, commMask: float = 0.0, commHeight: float = 1.0):
+    """Terrain-aware next sunrise/sunset and Earthrise/Earthset for the given equipment."""
+    return _planning_call(power_comms.terrain_events, lat, lon, _utc(utc),
+                          _equipment(panelTilt, panelHeight, commMask, commHeight))

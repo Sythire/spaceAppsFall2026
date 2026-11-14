@@ -155,7 +155,9 @@ class AnalysisTests(unittest.TestCase):
         layers = {layer["id"]: layer["available"] for layer in self.client.get("/api/v1/map/layers").json()}
         self.assertTrue(layers["illumination"])
         self.assertEqual(layers["elevation"], terrain.available())
-        self.assertFalse(layers["earth-visibility"])
+        # Terrain-aware layers need the LOLA DEM.
+        self.assertEqual(layers["earth-visibility"], terrain.available())
+        self.assertEqual(layers["power"], terrain.available())
 
 
 if __name__ == "__main__":

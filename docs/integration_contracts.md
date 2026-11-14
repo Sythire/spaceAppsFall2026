@@ -74,3 +74,22 @@ These are live, not proposed. Units are km and degrees; vectors are MOON_ME, Moo
 | GET /terrain/elevation.bin | width (divides 5760) | int16 LE metres above 1737.4 km, width × width/2, row 0 = 90°N, col 0 = 180°W |
 
 Out-of-coverage times (outside 1849–2150) return HTTP 422 with the SPICE error. The 3D view is Sun-centered (ECLIPJ2000) with the camera locked on the Moon; site angles stay Moon-fixed. It uses these endpoints directly with no mock fallback. Types live in frontend/src/types/index.ts.
+
+## Terrain-aware power and communication (backend/api/horizon.py, power_comms.py)
+| Method/path | Query | Response |
+| --- | --- | --- |
+| GET /coverage/map | grid=global\|southpole, kind=power\|sunlit\|comms, mode=instant\|monthly, utc?, panelTilt (0–90°), panelHeight (m), commMask (−5–90°), commHeight (m) | CoverageMap: base64 float32 grid + layout, units, min/max, samples |
+| GET /coverage/site | lat, lon, utc?, days (≤60), stepHours, same equipment params | SiteCoverage: hourly series, horizon profile, summary (sunlit %, mean/peak W/m², kWh/m², longest dark, Earth-visible %, longest outage) |
+
+Method: terrain horizons ray-marched over the LOLA ldem_16 DEM in 48 azimuths to 270 km (curvature included), cached in `backend/cache/` (built automatically on first use: ~2 min south pole, ~5 min global). Mount height lowers the horizon by atan(h/d) at the blocking distance. Panel: tilt from the local ground plane (DEM slope), tracking Sun azimuth; incident W/m² without conversion losses. Communication: Earth centre above terrain horizon and the mask angle; line of sight only, no link budget or relays. Grids: global 0.5° equirectangular; polar stereographic 1.9 km poleward of 80°S. Monthly = one synodic month sampled every 6 h.
+
+## Measured products, CLPS sites and terrain-aware events
+| Method/path | Query | Response |
+| --- | --- | --- |
+| GET /products/psr | none | Official LOLA PSR map (LPSR_75S_120M_201608, Mazarico et al. 2011) resampled to a 1524² polar grid: fraction of each ~0.6 km cell permanently shadowed |
+| GET /products/thermal | product=daymax\|nightmin | LRO Diviner GDR L3 bolometric temperature (K), 2010 cycle-average composite, global 4 px/deg |
+| GET /coverage/events | lat, lon, utc?, equipment params | Terrain-aware next sunrise/sunset and Earthrise/Earthset (35-day search, <1 min precision) |
+| GET/POST /recommendations | AnalysisRequest (POST) | Always `[]`: no suitability model has been agreed |
+
+`/site` now also returns `terrain.permanentlyShadowed` (true/false within 75°S–pole, null elsewhere) and `thermal` (Diviner day max / night min at the site).
+`/sites` includes NASA CLPS entries: landed missions at their published landing coordinates (kind `clps-landed`) and planned missions at the centre of their named target feature (kind `clps-planned`, explicitly not a landing point).

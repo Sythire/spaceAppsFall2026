@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { EXRLoader } from 'three/examples/jsm/loaders/EXRLoader.js';
 import { CSS2DObject, CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import type { MapLayer, ModelManifest, SceneSample, SpiceQuat, TerrainGrid, Vec3 } from '../../../types';
 
@@ -22,8 +23,17 @@ export type ScaleMode = 'compact' | 'true';
 type BodyKey = 'sun' | 'earth' | 'mars';
 
 const RADIUS_KM: Record<BodyKey, number> = { sun: 695700, earth: 6371.0, mars: 3389.5 };
-/** Compact mode: 1 AU = 60 units, Moon drawn 7 units from Earth along its true direction, bodies enlarged. */
-const COMPACT = { auUnits: 60, moonOffset: 7, radius: { sun: 5, earth: 1.4, mars: 0.8 } as Record<BodyKey, number> };
+/**
+ * Compact mode: distances compressed (1 AU = 60 units, Moon drawn 15 units from Earth along its true
+ * direction) but sizes keep their true ratios to the Moon (radius 1). The Sun is the one exception: at
+ * true ratio (~400) it would swallow the inner system, so it is capped and labelled as enlarged-but-capped.
+ */
+export const COMPACT_SCALE = {
+ auUnits: 60,
+ moonOffset: 15,
+ radius: { earth: RADIUS_KM.earth / MOON_RADIUS_KM, mars: RADIUS_KM.mars / MOON_RADIUS_KM, sun: 8 } as Record<BodyKey, number>,
+};
+const COMPACT = COMPACT_SCALE;
 const FALLBACK_COLOR: Record<BodyKey | 'moon', number> = { moon: 0x8a8a8a, earth: 0x2f6fb5, mars: 0xb5532f, sun: 0xffd27a };
 const SPICE_TO_THREE = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
 const THREE_TO_SPICE = SPICE_TO_THREE.clone().invert();
@@ -97,7 +107,22 @@ const ILLUMINATION_FRAGMENT = [
 ].join('\n');
 
 export interface SceneMarker { id: string; name: string; latitudeDeg: number; longitudeDeg: number; }
-export interface SceneOptions { grid: boolean; paths: boolean; labels: boolean; scale: ScaleMode; }
+export interface SceneOptions { grid: boolean; paths: boolean; labels: boolean; scale: ScaleMode; stars: boolean; }
+
+/**
+ * Star map orientation. The NASA SVS Deep Star Maps are equirectangular in J2000 celestial coordinates.
+ * On a three.js sphere, texture u maps to longitude (here right ascension) increasing to the right, with
+ * u = 0.5 on +X. SKY_RA_FLIP mirrors the image if the file has RA increasing to the left; SKY_RA_OFFSET_DEG
+ * shifts it if RA 0h is not at the image centre. Checked against the Galactic centre's position.
+ */
+export const SKY_RA_FLIP = true;
+export const SKY_RA_OFFSET_DEG = 0;
+/** Mean obliquity of the ecliptic at J2000 (IAU 1976), degrees: J2000 equatorial -> ECLIPJ2000. */
+export const OBLIQUITY_J2000_DEG = 23.4392911;
+/** Rotation placing J2000 (equatorial) content into the scene's ECLIPJ2000 axes, in three.js axes. */
+export function j2000ToEclipticQuat(): THREE.Quaternion {
+ return new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -THREE.MathUtils.degToRad(OBLIQUITY_J2000_DEG));
+}
 export type ModelStatus = Record<BodyKey | 'moon', 'loading' | 'model' | 'fallback'>;
 
 export class MoonScene {
@@ -126,7 +151,10 @@ export class MoonScene {
  private frame = 0;
  private flight: { from: THREE.Vector3; to: THREE.Vector3; t: number } | null = null;
  private lastFrame = performance.now();
- private options: SceneOptions = { grid: false, paths: true, labels: true, scale: 'compact' };
+ private options: SceneOptions = { grid: false, paths: true, labels: true, scale: 'compact', stars: true };
+ /** Star sphere: drawn first, without depth, centred on the camera so stars sit at infinity. */
+ private sky = new THREE.Mesh(new THREE.SphereGeometry(1000, 96, 48),
+  new THREE.MeshBasicMaterial({ side: THREE.BackSide, depthWrite: false, depthTest: false, color: 0xffffff }));
  private sample: SceneSample | null = null;
  private pathSamples: SceneSample[] = [];
  private orbitSamples: SceneSample[] = [];
@@ -181,6 +209,11 @@ export class MoonScene {
   this.moonFrame.add(this.moon, this.grid, this.markers, this.site);
   this.helio.add(this.paths, ...Object.values(this.bodies));
   this.scene.add(this.moonFrame, this.helio);
+  this.sky.visible = false; // until a star map is loaded
+  this.sky.renderOrder = -10;
+  this.sky.frustumCulled = false;
+  this.sky.quaternion.copy(j2000ToEclipticQuat());
+  this.scene.add(this.sky);
   this.bodies.earth.add(this.earthSpin);
 
   this.fallbackSphere(this.moon, 1, FALLBACK_COLOR.moon);
@@ -225,7 +258,7 @@ export class MoonScene {
  async loadModels(manifest: ModelManifest, resolve: (path: string) => string) {
   const status: ModelStatus = { moon: 'fallback', earth: 'fallback', sun: 'fallback', mars: 'fallback' };
   const loader = new GLTFLoader();
-  const targets: [keyof ModelManifest, THREE.Object3D][] = [
+  const targets: [BodyKey | 'moon', THREE.Object3D][] = [
    ['moon', this.moon], ['earth', this.earthSpin], ['sun', this.bodies.sun], ['mars', this.bodies.mars],
   ];
   for (const [key] of targets) if (manifest[key]) status[key] = 'loading';
@@ -270,6 +303,28 @@ export class MoonScene {
    }
    this.onModelStatus({ ...status });
   }));
+ }
+
+ /** Load a NASA Deep Star Map (EXR keeps real brightness; JPG/PNG also accepted). Returns false if it fails. */
+ async loadSky(url: string): Promise<boolean> {
+  try {
+   const isExr = url.toLowerCase().endsWith('.exr');
+   const tex: THREE.Texture = isExr ? await new EXRLoader().loadAsync(url) : await new THREE.TextureLoader().loadAsync(url);
+   if (this.disposed) { tex.dispose(); return false; }
+   tex.colorSpace = isExr ? THREE.LinearSRGBColorSpace : THREE.SRGBColorSpace;
+   tex.wrapS = THREE.RepeatWrapping;
+   tex.repeat.x = SKY_RA_FLIP ? -1 : 1;
+   tex.offset.x = (SKY_RA_FLIP ? 1 : 0) + SKY_RA_OFFSET_DEG / 360;
+   tex.needsUpdate = true;
+   const mat = this.sky.material as THREE.MeshBasicMaterial;
+   mat.map = tex;
+   mat.color.setScalar(isExr ? 1.6 : 0.85); // exposure: stars visible without washing out the scene
+   mat.needsUpdate = true;
+   this.sky.visible = this.options.stars;
+   return true;
+  } catch {
+   return false;
+  }
  }
 
  /** Downscale very large textures in memory (the 15k Moon map is ~450 MB of GPU memory at full size). */
@@ -344,6 +399,7 @@ export class MoonScene {
   this.options = { ...this.options, ...next };
   this.grid.visible = this.options.grid;
   this.paths.visible = this.options.paths;
+  this.sky.visible = this.options.stars && !!(this.sky.material as THREE.MeshBasicMaterial).map;
   for (const l of this.labels) l.visible = this.options.labels;
   // Only re-frame on a user change; the initial (possibly restored) scale must not override a saved view.
   if (scaleChanged) { this.applyScale(); this.buildPaths(); this.applySample(); if (this.sample) this.resetView(); }
@@ -699,6 +755,7 @@ export class MoonScene {
    const facing = cam.clone().sub(p).dot(p) > 0;
    label.visible = this.options.labels && (!grid || this.options.grid) && facing;
   }
+  this.sky.position.copy(this.camera.position);
   this.controls.update();
   this.renderer.render(this.scene, this.camera);
   this.labelRenderer.render(this.scene, this.camera);

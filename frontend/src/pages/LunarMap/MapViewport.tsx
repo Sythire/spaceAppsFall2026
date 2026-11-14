@@ -30,8 +30,8 @@ const deg = (v: number) => v.toFixed(2) + '°';
 
 /** View settings remembered across reloads in this browser (falls back to defaults if storage is blocked). */
 const PREFS_KEY = 'lunarsite.explorer.prefs.v1';
-interface ViewPrefs { scale: ScaleMode; grid: boolean; paths: boolean; labels: boolean; speed: number; exaggeration: number; }
-const DEFAULT_PREFS: ViewPrefs = { scale: 'compact', grid: false, paths: true, labels: true, speed: 6, exaggeration: 5 };
+interface ViewPrefs { scale: ScaleMode; grid: boolean; paths: boolean; labels: boolean; stars: boolean; speed: number; exaggeration: number; }
+const DEFAULT_PREFS: ViewPrefs = { scale: 'compact', grid: false, paths: true, labels: true, stars: true, speed: 6, exaggeration: 5 };
 const EXAGGERATIONS = [1, 2, 5, 10, 20];
 function loadPrefs(): ViewPrefs {
  try { return { ...DEFAULT_PREFS, ...(JSON.parse(localStorage.getItem(PREFS_KEY) ?? '{}') as Partial<ViewPrefs>) }; }
@@ -56,6 +56,8 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
  const [grid, setGrid] = useState(initialPrefs.grid);
  const [paths, setPaths] = useState(initialPrefs.paths);
  const [labels, setLabels] = useState(initialPrefs.labels);
+ const [stars, setStars] = useState(initialPrefs.stars);
+ const [skyState, setSkyState] = useState<'none' | 'loading' | 'ready' | 'error'>('none');
  const [exaggeration, setExaggeration] = useState(initialPrefs.exaggeration);
  const [terrain, setTerrain] = useState<TerrainGrid | null>(null);
  const [terrainState, setTerrainState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
@@ -74,7 +76,14 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
    id => { const m = markersRef.current.find(s => s.id === id); if (m) onSelectRef.current(m); },
    setModels);
   engineRef.current = engine;
-  sceneService.models().then(manifest => engine.loadModels(manifest, modelUrl)).catch(() => setModels({ moon: 'fallback', earth: 'fallback', sun: 'fallback', mars: 'fallback' }));
+  sceneService.models().then(manifest => {
+   if (engineRef.current !== engine) return; // this engine was already disposed (React dev double-mount)
+   if (manifest.sky) {
+    setSkyState('loading');
+    engine.loadSky(modelUrl(manifest.sky)).then(ok => { if (engineRef.current === engine) setSkyState(ok ? 'ready' : 'error'); });
+   }
+   return engine.loadModels(manifest, modelUrl);
+  }).catch(() => setModels({ moon: 'fallback', earth: 'fallback', sun: 'fallback', mars: 'fallback' }));
   return () => { engine.dispose(); engineRef.current = null; };
  }, []);
 
@@ -102,10 +111,10 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
  const viewingUtc = sample?.utc ?? utc;
 
  useEffect(() => { if (sample) engineRef.current?.setSample(sample); }, [sample]);
- useEffect(() => { engineRef.current?.setOptions({ scale, grid, paths, labels }); }, [scale, grid, paths, labels]);
+ useEffect(() => { engineRef.current?.setOptions({ scale, grid, paths, labels, stars }); }, [scale, grid, paths, labels, stars]);
  useEffect(() => {
-  try { localStorage.setItem(PREFS_KEY, JSON.stringify({ scale, grid, paths, labels, speed, exaggeration })); } catch { /* storage unavailable */ }
- }, [scale, grid, paths, labels, speed, exaggeration]);
+  try { localStorage.setItem(PREFS_KEY, JSON.stringify({ scale, grid, paths, labels, stars, speed, exaggeration })); } catch { /* storage unavailable */ }
+ }, [scale, grid, paths, labels, stars, speed, exaggeration]);
 
  // Data layers. The LOLA grid is fetched once, the first time Elevation is switched on.
  useEffect(() => {
@@ -184,6 +193,7 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
     <label className="checkbox"><input type="checkbox" checked={grid} onChange={e => setGrid(e.target.checked)} />Lat/lon grid</label>
     <label className="checkbox"><input type="checkbox" checked={paths} onChange={e => setPaths(e.target.checked)} />Orbits & Moon path</label>
     <label className="checkbox"><input type="checkbox" checked={labels} onChange={e => setLabels(e.target.checked)} />Labels</label>
+    <label className="checkbox" title={skyState === 'none' ? 'No star map in modelResources' : undefined}><input type="checkbox" checked={stars} disabled={skyState !== 'ready'} onChange={e => setStars(e.target.checked)} />Stars{skyState === 'loading' ? ' (loading…)' : skyState === 'none' ? ' (no map)' : skyState === 'error' ? ' (failed)' : ''}</label>
     <div className="button-row">
      <button type="button" onClick={() => engineRef.current?.resetView()}><Moon size={12} aria-hidden /> Moon</button>
      <button type="button" onClick={() => engineRef.current?.systemView()}><Sun size={12} aria-hidden /> Solar system</button>
@@ -265,8 +275,9 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
    <p className="scene-source">
     {series ? series.source : 'Source pending'} · Horizon: {siteGeo?.horizonMethod ?? 'mean lunar sphere, no terrain'} · Azimuth clockwise from north
     {' · View: Sun-centered ECLIPJ2000, camera locked on the Moon'}
-    {scale === 'compact' ? ' · Compact scale: 1 AU = 60 units, Moon–Earth distance and body sizes enlarged' : ' · True scale: real distances and radii'}
+    {scale === 'compact' ? ' · Compact scale: distances compressed (1 AU = 60 units, Moon–Earth 15 Moon radii); directions and Moon/Earth/Mars size ratios true; Sun size capped' : ' · True scale: real distances and radii'}
     {modelNote ? ' · ' + modelNote : ''}
+    {skyState === 'ready' && stars ? ' · Stars: NASA/Goddard SVS Deep Star Maps 2020 (J2000)' : ''}
    </p>
   </section>
  </div>;

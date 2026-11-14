@@ -103,3 +103,30 @@ test('elevation and illumination layers are available; earth visibility is still
  const byId = Object.fromEntries(mapLayers.map(l => [l.id, l.available]));
  assert.deepEqual(byId, { illumination: true, elevation: true, 'earth-visibility': false });
 });
+
+// ---------- compact scale ----------
+test('compact scale keeps true Moon/Earth/Mars size ratios and only compresses distance', async () => {
+ const { COMPACT_SCALE, MOON_RADIUS_KM } = await import('../src/pages/LunarMap/scene/MoonScene.ts');
+ close(COMPACT_SCALE.radius.earth, 6371.0 / MOON_RADIUS_KM, 1e-9); // ~3.67
+ close(COMPACT_SCALE.radius.mars, 3389.5 / MOON_RADIUS_KM, 1e-9);  // ~1.95
+ // The Moon (radius 1) never touches the Earth, and the capped Sun stays well inside Earth's orbit.
+ assert.ok(COMPACT_SCALE.moonOffset > COMPACT_SCALE.radius.earth + 1 + 5);
+ assert.ok(COMPACT_SCALE.radius.sun < COMPACT_SCALE.auUnits / 4);
+});
+
+// ---------- star sphere orientation ----------
+test('J2000 -> ecliptic rotation puts the celestial north pole at ecliptic lat 66.56°, lon 90°', async () => {
+ const { j2000ToEclipticQuat, OBLIQUITY_J2000_DEG } = await import('../src/pages/LunarMap/scene/MoonScene.ts');
+ const e = THREE.MathUtils.degToRad(OBLIQUITY_J2000_DEG);
+ const ncp = moonMeToThree([0, 0, 1]).applyQuaternion(j2000ToEclipticQuat());
+ closeVec(ncp, moonMeToThree([0, Math.sin(e), Math.cos(e)]), 1e-12);
+});
+
+test('Galactic centre (RA 266.405°, Dec -28.936°) lands at ecliptic lon ~266.84°, lat ~-5.54°', async () => {
+ const { j2000ToEclipticQuat } = await import('../src/pages/LunarMap/scene/MoonScene.ts');
+ const ra = THREE.MathUtils.degToRad(266.405), dec = THREE.MathUtils.degToRad(-28.936);
+ const v = moonMeToThree([Math.cos(dec) * Math.cos(ra), Math.cos(dec) * Math.sin(ra), Math.sin(dec)]).applyQuaternion(j2000ToEclipticQuat());
+ const ll = threeToLatLon(v); // same lat/lon maths, here ecliptic latitude/longitude
+ close(ll.latitudeDeg, -5.54, 0.02);
+ close((ll.longitudeDeg + 360) % 360, 266.84, 0.02);
+});

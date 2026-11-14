@@ -1,4 +1,4 @@
-export interface LunarLocation { id: string; name: string; latitudeDeg: number; longitudeDeg: number; frame: 'MOON_ME'; kind?: 'historical' | 'exploratory'; source?: string | null; coordinateFrame?: string; coordinateNote?: string; }
+export interface LunarLocation { id: string; name: string; latitudeDeg: number; longitudeDeg: number; frame: 'MOON_ME'; kind?: 'historical' | 'exploratory' | 'clps-landed' | 'clps-planned'; source?: string | null; coordinateFrame?: string; coordinateNote?: string; status?: string; program?: string; }
 export interface AnalysisRequest { location: LunarLocation; utc: string; durationHours?: number; stepHours?: number; }
 export interface SunPosition { elevationDeg: number; azimuthDeg: number; }
 export interface EarthPosition { elevationDeg: number; azimuthDeg: number; }
@@ -7,7 +7,7 @@ export interface TerrainData { slopeDeg: number | null; temperatureK: number | n
 export interface TimelinePoint { hour: number; sunlightPercent: number; earthVisibilityPercent: number; utc?: string; sun?: HorizonSample; earth?: HorizonSample; solarFluxWm2?: number; horizontalIrradianceWm2?: number; }
 export interface AnalysisResult { request: AnalysisRequest; mode: 'simulated' | 'modeled' | 'verified'; source: string; sun: SunPosition; earth: EarthPosition; illumination: IlluminationData; earthVisibilityPercent: number; terrain: TerrainData; suitability: string | null; earthVisibility?: VisibilitySummary; interval?: AnalysisInterval; metadata?: AnalysisMetadata; }
 export interface LandingSiteComparison { results: AnalysisResult[]; }
-export type MapLayer = 'illumination' | 'earth-visibility' | 'elevation' | 'power';
+export type MapLayer = 'illumination' | 'earth-visibility' | 'elevation' | 'power' | 'psr' | 'thermal';
 export interface MapLayerDefinition { id: MapLayer; name: string; available: boolean; }
 export interface Recommendation { location: LunarLocation; reason: string; mode: 'simulated' | 'verified'; }
 
@@ -33,9 +33,12 @@ export interface SiteGeometry {
  sun: BodyEvents; earth: BodyEvents;
  power: { solarFluxWm2: number; horizontalPanelWm2: number; assumptions: string };
  terrain: SiteTerrain | null;
+ thermal?: SiteThermal | null;
 }
 /** LOLA DEM values at a site; null when the DEM file is not present. */
-export interface SiteTerrain { elevationM: number; regionalSlopeDeg: number; baselineKm: number; source: string; note: string; }
+export interface SiteTerrain { elevationM: number; regionalSlopeDeg: number; baselineKm: number; source: string; note: string; permanentlyShadowed?: boolean | null; psrSource?: string | null; }
+/** LRO Diviner measured temperatures at a site (2010 cycle averages). */
+export interface SiteThermal { dayMaxK: number | null; nightMinK: number | null; source: string; note: string; }
 /** Downsampled LOLA height grid: metres above the 1737.4 km sphere; row 0 = 90°N, column 0 = 180°W. */
 export interface TerrainGrid { width: number; height: number; heightsM: Int16Array; }
 
@@ -68,3 +71,11 @@ export interface SiteCoverage {
  series: { utc: string[]; sunElevationDeg: number[]; sunHorizonDeg: number[]; powerWm2: number[]; earthElevationDeg: number[]; earthLimitDeg: number[]; earthVisible: boolean[]; sunlit: boolean[] };
  summary: { sunlitPct: number; meanPowerWm2: number; peakPowerWm2: number; energyKWhPerM2: number; longestDarkHours: number; earthVisiblePct: number; longestCommOutageHours: number };
 }
+
+/** Terrain-aware rise/set events (real skyline + receiver mask). */
+export interface TerrainEvent { up: boolean; nextSet: string | null; nextRise: string | null; }
+export interface TerrainEvents { utc: string; searchWindowDays: number; sun: TerrainEvent; earth: TerrainEvent; method: string; }
+/** Measured map products. psr: polar grid (fraction shadowed); thermal: global grid (K). */
+export interface PsrMap { width: number; height: number; rhoMaxM: number; capLat: number; valuesF32: string; units: string; cellKm: number; source: string; layout: string; }
+export type ThermalProduct = 'daymax' | 'nightmin';
+export interface ThermalMap { width: number; height: number; units: 'K'; product: ThermalProduct; label: string; min: number; max: number; cycles: { day: number; night: number }; period: string; valuesF32: string; source: string; cellKm: number; layout: string; }

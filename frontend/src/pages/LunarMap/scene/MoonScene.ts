@@ -137,14 +137,16 @@ const COVERAGE_FRAGMENT = [
  '}',
 ].join('\n');
 
-export type CoverageLayer = 'power' | 'earth-visibility';
+export type CoverageLayer = 'power' | 'earth-visibility' | 'psr' | 'thermal';
 /** Pre-coloured RGBA grids for one coverage layer. */
 export interface CoverageTextures {
  global: { width: number; height: number; rgba: Uint8Array } | null;
  polar: { width: number; height: number; rgba: Uint8Array; capLatDeg: number; rhoMaxM: number } | null;
 }
 
-export interface SceneMarker { id: string; name: string; latitudeDeg: number; longitudeDeg: number; }
+export interface SceneMarker { id: string; name: string; latitudeDeg: number; longitudeDeg: number; kind?: string; }
+/** Ping colours by mission type (also used by the legend). */
+export const MARKER_COLORS: Record<string, number> = { historical: 0x7fe0d0, 'clps-landed': 0x8fe36b, 'clps-planned': 0xf0b04a, exploratory: 0xb0b8c4 };
 export interface SceneOptions { grid: boolean; paths: boolean; labels: boolean; scale: ScaleMode; stars: boolean; }
 
 /**
@@ -273,7 +275,7 @@ export class MoonScene {
   this.illumination.visible = false;
   this.illumination.renderOrder = 2;
   this.moonFrame.add(this.illumination);
-  for (const [layer, lift] of [['power', 0.0011], ['earth-visibility', 0.0019]] as const) {
+  for (const [layer, lift] of [['thermal', 0.0009], ['power', 0.0011], ['earth-visibility', 0.0019], ['psr', 0.0023]] as const) {
    const mesh = new THREE.Mesh(this.sphereGeometry, new THREE.ShaderMaterial({
     uniforms: { uGlobal: { value: null }, uPolar: { value: null }, uHasPolar: { value: 0 }, uCapLat: { value: -Math.PI / 2 },
      uRhoMax: { value: 1 }, uLift: { value: lift } },
@@ -478,11 +480,11 @@ export class MoonScene {
    const r = this.surfaceRadius(m.latitudeDeg, m.longitudeDeg);
    const p = latLonToThree(m.latitudeDeg, m.longitudeDeg, r + 0.003);
    const dot = new THREE.Mesh(new THREE.SphereGeometry(0.012, 16, 12),
-    new THREE.MeshBasicMaterial({ color: m.id === selectedId ? 0xe2bd7c : 0x7fe0d0 }));
+    new THREE.MeshBasicMaterial({ color: m.id === selectedId ? 0xe2bd7c : MARKER_COLORS[m.kind ?? 'historical'] ?? 0x7fe0d0 }));
    dot.position.copy(p);
    dot.userData.markerId = m.id;
    const glow = new THREE.Mesh(new THREE.RingGeometry(0.016, 0.03, 32),
-    new THREE.MeshBasicMaterial({ color: 0x7fe0d0, transparent: true, opacity: 0.6, side: THREE.DoubleSide, depthWrite: false }));
+    new THREE.MeshBasicMaterial({ color: MARKER_COLORS[m.kind ?? 'historical'] ?? 0x7fe0d0, transparent: true, opacity: 0.6, side: THREE.DoubleSide, depthWrite: false }));
    glow.position.copy(p);
    glow.lookAt(p.clone().multiplyScalar(2));
    glow.userData.pulse = Math.random() * Math.PI * 2;

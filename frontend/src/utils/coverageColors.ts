@@ -57,3 +57,23 @@ export function decodeF32(b64: string): Float32Array {
  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
  return new Float32Array(bytes.buffer);
 }
+
+/** Diviner surface temperature (K): cold traps deep blue through daytime highlands red. */
+export const THERMAL_MIN_K = 20;
+export const THERMAL_MAX_K = 400;
+export const THERMAL_STOPS: Stops = [[0, '#0b0d3a'], [0.08, '#2b2f9e'], [0.21, '#2f86c4'], [0.34, '#4fb7a5'], [0.6, '#f0d55c'], [0.82, '#e8913b'], [1, '#c8553d']];
+export const thermalSpec = (): ScaleSpec => ({ stops: THERMAL_STOPS, min: THERMAL_MIN_K, max: THERMAL_MAX_K, unit: 'K', blockedBelowZero: false });
+
+/** Permanent shadow: fraction of each cell shadowed → highlight colour with opacity proportional to the fraction. */
+export const PSR_COLOR = '#b36bff';
+export function psrRgba(fraction: Float32Array, maxAlpha = 235): Uint8Array {
+ const out = new Uint8Array(fraction.length * 4);
+ const [r, g, b] = [0xb3, 0x6b, 0xff];
+ for (let i = 0; i < fraction.length; i++) {
+  const f = fraction[i];
+  if (!Number.isFinite(f) || f <= 0) continue;
+  out[i * 4] = r; out[i * 4 + 1] = g; out[i * 4 + 2] = b;
+  out[i * 4 + 3] = Math.round(maxAlpha * Math.min(1, 0.35 + 0.65 * f)); // even partly shadowed cells stay visible
+ }
+ return out;
+}

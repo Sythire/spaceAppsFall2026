@@ -1,4 +1,4 @@
-import type { CoverageGrid, CoverageKind, CoverageMap, CoverageMode, Equipment, ModelManifest, SceneSeries, SiteCoverage, SiteGeometry, TerrainGrid } from '../types';
+import type { CoverageGrid, CoverageKind, CoverageMap, CoverageMode, Equipment, ModelManifest, PsrMap, SceneSeries, SiteCoverage, SiteGeometry, TerrainEvents, TerrainGrid, ThermalMap, ThermalProduct } from '../types';
 import { apiClient } from './apiClient';
 
 /** Live SPICE geometry. There is no simulated fallback: failures surface as errors. */
@@ -45,5 +45,9 @@ export const coverageService = {
   slowGet('/coverage/map' + query({ grid, kind, mode, utc, ...equipmentQuery(e) })),
  site: (lat: number, lon: number, utc: string, e: Equipment, days = 30): Promise<SiteCoverage> =>
   slowGet('/coverage/site' + query({ lat, lon, utc, days, stepHours: 1, ...equipmentQuery(e) })),
+ events: (lat: number, lon: number, utc: string, e: Equipment): Promise<TerrainEvents> =>
+  slowGet('/coverage/events' + query({ lat, lon, utc, ...equipmentQuery(e) })),
+ psr: (): Promise<PsrMap> => slowGet('/products/psr'),
+ thermal: (product: ThermalProduct): Promise<ThermalMap> => slowGet('/products/thermal' + query({ product })),
 };
 

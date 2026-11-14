@@ -56,3 +56,6 @@ code{font-size:11px;background:#0a131e;padding:1px 5px;border-radius:3px;color:#
 .site-coverage .readout-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
 @media(max-width:1350px){.coverage-charts{grid-template-columns:1fr}.site-coverage .readout-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){.site-coverage .readout-grid{grid-template-columns:1fr}}
+.terrain-event{display:block;margin-top:4px;color:#c9b98a!important}
+.metric-psr{border-color:#6b3fa0}.metric-psr strong{color:#d7b4ff}
+.scene-legend .ping{width:8px;height:8px;border-radius:50%}

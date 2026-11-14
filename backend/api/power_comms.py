@@ -225,3 +225,54 @@ def site_series(lat: float, lon: float, start: datetime, days: float, step_h: fl
             "longestCommOutageHours": _longest_run(~visible, step_h),
         },
     }
+
+
+# ---------------------------------------------------------------- terrain-aware rise / set events
+def _point_grid(lat: float, lon: float) -> tuple[horizon.Grid, tuple]:
+    la, lo = np.array([lat], float), np.array([lon], float)
+    hz, hd = horizon.compute_horizons(la, lo)
+    normal, slope = horizon._ground_normal(la, lo)
+    grid = horizon.Grid("site", (1, 1), la, lo, np.ones(1, bool), horizon.sample_dem(la, lo).astype(np.float32),
+                        normal, slope.astype(np.float32), hz, hd, 0.0, "single site")
+    return grid, _grid_basis(grid)
+
+
+def terrain_events(lat: float, lon: float, start: datetime, eq: Equipment, days: float = 35.0) -> dict:
+    """Next sunrise/sunset and Earthrise/Earthset against the real terrain skyline (and the receiver mask),
+    found on an hourly scan and refined by bisection to under a minute."""
+    eq.validate()
+    if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+        raise ValueError("Latitude must be -90..90 and longitude -180..180 degrees")
+    grid, basis = _point_grid(lat, lon)
+    times, sun, earth = _vectors(start, days * 24, 1.0)
+    rows = [evaluate(grid, sun[i], earth[i], eq, basis) for i in range(len(times))]
+    t0 = datetime.fromisoformat(times[0].replace("Z", "+00:00"))
+
+    def state(key: str, when: datetime) -> bool:
+        _, s, e = _vectors(when, 0, 1)
+        r = evaluate(grid, s[0], e[0], eq, basis, ("sun",) if key == "sunlit" else ("earth",))
+        return bool(r[key][0])
+
+    def crossings(key: str):
+        flags = [bool(r[key][0]) for r in rows]
+        out = {"up": flags[0], "nextSet": None, "nextRise": None}
+        for i in range(len(flags) - 1):
+            if flags[i] == flags[i + 1]:
+                continue
+            lo, hi = t0 + timedelta(hours=i), t0 + timedelta(hours=i + 1)
+            for _ in range(7):  # 60 min / 2^7 < 30 s
+                mid = lo + (hi - lo) / 2
+                if state(key, mid) == flags[i]:
+                    lo = mid
+                else:
+                    hi = mid
+            when = (lo + (hi - lo) / 2).astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+            field = "nextSet" if flags[i] else "nextRise"
+            if out[field] is None:
+                out[field] = when
+            if out["nextSet"] and out["nextRise"]:
+                break
+        return out
+
+    return {"utc": times[0], "searchWindowDays": days, "equipment": asdict(eq), "method": METHOD,
+            "sun": crossings("sunlit"), "earth": crossings("visible")}

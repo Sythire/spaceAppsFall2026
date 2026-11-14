@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pause, Play, Moon, Sun, Crosshair, CalendarCheck } from 'lucide-react';
-import type { CoverageMap, CoverageMode, Equipment, LunarLocation, MapLayer, SceneSeries, SiteCoverage, SiteGeometry, TerrainGrid, Vec3 } from '../../types';
+import type { CoverageMap, CoverageMode, Equipment, LunarLocation, MapLayer, PsrMap, SceneSeries, SiteCoverage, SiteGeometry, TerrainEvents, TerrainGrid, ThermalMap, ThermalProduct, Vec3 } from '../../types';
 import { coverageService, modelUrl, sceneService } from '../../services/sceneService';
-import { ELEVATION_STOPS, MoonScene, type CoverageLayer, type ModelStatus, type ScaleMode } from './scene/MoonScene';
-import { colorize, cssGradient, decodeF32, scaleFor, BLOCKED_COLOR } from '../../utils/coverageColors';
+import { ELEVATION_STOPS, MARKER_COLORS, MoonScene, type ModelStatus, type ScaleMode } from './scene/MoonScene';
+import { colorize, cssGradient, decodeF32, psrRgba, scaleFor, thermalSpec, BLOCKED_COLOR, PSR_COLOR, THERMAL_MAX_K, THERMAL_MIN_K } from '../../utils/coverageColors';
 import { SiteCoveragePanel } from './SiteCoveragePanel';
 import { formatCountdown, formatUtc, sampleAt } from '../../utils/sceneTime';
 
@@ -20,7 +20,9 @@ export interface MapViewportProps {
  coverageMode: CoverageMode;
 }
 
-const COVERAGE_KIND: Record<CoverageLayer, 'power' | 'comms'> = { power: 'power', 'earth-visibility': 'comms' };
+type TerrainLayer = 'power' | 'earth-visibility';
+const COVERAGE_KIND: Record<TerrainLayer, 'power' | 'comms'> = { power: 'power', 'earth-visibility': 'comms' };
+const hex = (n: number) => '#' + n.toString(16).padStart(6, '0');
 interface CoverageState { status: 'idle' | 'loading' | 'ready' | 'error'; error: string; meta: CoverageMap | null; }
 const IDLE: CoverageState = { status: 'idle', error: '', meta: null };
 
@@ -75,7 +77,12 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
  const [models, setModels] = useState<ModelStatus | null>(null);
  const [siteGeo, setSiteGeo] = useState<SiteGeometry | null>(null);
  const [siteError, setSiteError] = useState('');
- const [coverage, setCoverage] = useState<Record<CoverageLayer, CoverageState>>({ power: IDLE, 'earth-visibility': IDLE });
+ const [coverage, setCoverage] = useState<Record<TerrainLayer, CoverageState>>({ power: IDLE, 'earth-visibility': IDLE });
+ const [psr, setPsr] = useState<{ status: 'idle' | 'loading' | 'ready' | 'error'; meta: PsrMap | null; error: string }>({ status: 'idle', meta: null, error: '' });
+ const [thermalProduct, setThermalProduct] = useState<ThermalProduct>('daymax');
+ const [thermal, setThermal] = useState<{ status: 'idle' | 'loading' | 'ready' | 'error'; meta: ThermalMap | null; error: string }>({ status: 'idle', meta: null, error: '' });
+ const [events, setEvents] = useState<TerrainEvents | null>(null);
+ const psrOn = layers.includes('psr'), thermalOn = layers.includes('thermal');
  const [siteCoverage, setSiteCoverage] = useState<{ data: SiteCoverage | null; loading: boolean; error: string }>({ data: null, loading: false, error: '' });
 
  // Engine lifecycle.
@@ -172,7 +179,7 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
 
  // Terrain-aware coverage maps. "Now" follows the viewed time (refreshed when paused); monthly uses the scenario time.
  const coverageTime = coverageMode === 'instant' ? viewingUtc : utc;
- const activeCoverage = (['power', 'earth-visibility'] as CoverageLayer[]).filter(l => layers.includes(l));
+ const activeCoverage = (['power', 'earth-visibility'] as TerrainLayer[]).filter(l => layers.includes(l));
  const coverageKey = activeCoverage.join(',');
  useEffect(() => {
   if (!activeCoverage.length || (playing && coverageMode === 'instant')) return;
@@ -200,6 +207,38 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
   return () => { current = false; clearTimeout(id); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
  }, [coverageKey, coverageMode, coverageTime, equipment, playing]);
+
+ // Measured products: LOLA permanent shadow (fetched once) and Diviner temperature (per product).
+ useEffect(() => {
+  if (!psrOn || psr.status === 'loading' || psr.status === 'ready') return;
+  setPsr({ status: 'loading', meta: null, error: '' });
+  coverageService.psr().then(m => {
+   engineRef.current?.setCoverage('psr', { global: null, polar: { width: m.width, height: m.height, rgba: psrRgba(decodeF32(m.valuesF32)), capLatDeg: m.capLat, rhoMaxM: m.rhoMaxM } });
+   setPsr({ status: 'ready', meta: m, error: '' });
+  }).catch((e: unknown) => setPsr({ status: 'error', meta: null, error: e instanceof Error ? e.message : 'Unable to load PSR map' }));
+ }, [psrOn, psr.status]);
+ useEffect(() => {
+  if (!thermalOn) return;
+  let current = true;
+  setThermal(t => ({ ...t, status: 'loading', error: '' }));
+  coverageService.thermal(thermalProduct).then(m => {
+   if (!current) return;
+   engineRef.current?.setCoverage('thermal', { global: { width: m.width, height: m.height, rgba: colorize(decodeF32(m.valuesF32), thermalSpec(), 200) }, polar: null });
+   setThermal({ status: 'ready', meta: m, error: '' });
+  }).catch((e: unknown) => { if (current) setThermal({ status: 'error', meta: null, error: e instanceof Error ? e.message : 'Unable to load Diviner map' }); });
+  return () => { current = false; };
+ }, [thermalOn, thermalProduct]);
+
+ // Terrain-aware rise/set times for the viewed time (refreshed when paused).
+ useEffect(() => {
+  if (lat === undefined || lon === undefined) { setEvents(null); return; }
+  if (playing) return;
+  let current = true;
+  const id = setTimeout(() => {
+   coverageService.events(lat, lon, viewingUtc, equipment).then(e => { if (current) setEvents(e); }).catch(() => { if (current) setEvents(null); });
+  }, 450);
+  return () => { current = false; clearTimeout(id); };
+ }, [lat, lon, viewingUtc, equipment, playing]);
 
  // Site statistics: 30 days from the scenario time with the current equipment.
  useEffect(() => {
@@ -236,6 +275,15 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
   return `${up ? 'Above' : 'Below'} horizon · ${up ? name[0] : name[1]} in ${countdown} (${formatUtc(when)})`;
  };
 
+ const terrainEvent = (body: 'sun' | 'earth', name: [string, string]) => {
+  const e = events?.[body];
+  if (!e || playing) return null;
+  const when = e.up ? e.nextSet : e.nextRise;
+  const countdown = formatCountdown(viewingUtc, when);
+  const what = e.up ? name[0] : name[1];
+  return `With terrain${body === 'earth' && equipment.commMaskDeg ? ` & ${equipment.commMaskDeg}° mask` : ''}: ${e.up ? 'in view' : 'blocked'} · ${when && countdown ? `${what} in ${countdown}` : `no ${what} within ${events!.searchWindowDays} days`}`;
+ };
+
  const modelNote = models && Object.entries(models).filter(([, s]) => s !== 'model')
   .map(([k, s]) => `${k}: ${s === 'loading' ? 'loading model…' : 'reference sphere (GLB not found)'}`).join(' · ');
 
@@ -255,7 +303,7 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
      {location && <button type="button" onClick={() => engineRef.current?.flyTo(location.latitudeDeg, location.longitudeDeg)}><Crosshair size={12} aria-hidden /> Site</button>}
     </div>
    </div>
-   {(elevationOn || illuminationOn || activeCoverage.length > 0) && <div className="layer-legends">
+   {(elevationOn || illuminationOn || activeCoverage.length > 0 || psrOn || thermalOn) && <div className="layer-legends">
     {elevationOn && <div className="layer-legend">
      <strong>Elevation (LOLA)</strong>
      {terrainState === 'loading' && <span>Loading LOLA heights…</span>}
@@ -283,6 +331,24 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
       </>}
      </div>;
     })}
+    {thermalOn && <div className="layer-legend">
+     <strong>Surface temperature · Diviner (measured)</strong>
+     <label>Show<select value={thermalProduct} onChange={e => setThermalProduct(e.target.value as ThermalProduct)}>
+      <option value="daymax">Daytime maximum</option><option value="nightmin">Night-time minimum</option></select></label>
+     {thermal.status === 'loading' && <span>Loading Diviner maps…</span>}
+     {thermal.status === 'error' && <span role="alert">{thermal.error}</span>}
+     <div className="legend-bar" style={{ background: cssGradient(thermalSpec().stops) }} />
+     <div className="legend-scale"><span>{THERMAL_MIN_K} K</span><span>{(THERMAL_MIN_K + THERMAL_MAX_K) / 2} K</span><span>{THERMAL_MAX_K} K</span></div>
+     {thermal.meta && <small>{thermal.meta.label} · {thermal.meta.cycles.day} day / {thermal.meta.cycles.night} night cycles · {thermal.meta.cellKm} km cells · LRO Diviner GDR L3 (PDS)</small>}
+    </div>}
+    {psrOn && <div className="layer-legend">
+     <strong>Permanent shadow · LOLA PSR (official)</strong>
+     {psr.status === 'loading' && <span>Loading PSR map…</span>}
+     {psr.status === 'error' && <span role="alert">{psr.error}</span>}
+     <div className="legend-bar" style={{ background: `linear-gradient(90deg, transparent 0%, ${PSR_COLOR}88 30%, ${PSR_COLOR} 100%)` }} />
+     <div className="legend-scale"><span>Sunlit at times</span><span>Permanently shadowed</span></div>
+     {psr.meta && <small>75°S to the pole · {psr.meta.cellKm.toFixed(1)} km cells (opacity = shadowed share) · NASA GSFC/LOLA, Mazarico et al. 2011</small>}
+    </div>}
     {illuminationOn && <div className="layer-legend">
      <strong>Illumination · solar elevation</strong>
      <div className="legend-bar" style={{ background: 'linear-gradient(90deg, #0f1f6b 0%, #0f1f6b 12%, #fff1a0 12%, #fff1a0 14%, #f25914 14%, #ffc733 40%, #fffad9 100%)' }} />
@@ -291,6 +357,7 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
     </div>}
    </div>}
    <div className="scene-legend" aria-hidden>
+    <span><i className="ping" style={{ background: hex(MARKER_COLORS.historical) }} />Apollo</span><span><i className="ping" style={{ background: hex(MARKER_COLORS['clps-landed']) }} />CLPS landed</span><span><i className="ping" style={{ background: hex(MARKER_COLORS['clps-planned']) }} />CLPS planned (target region)</span>
     <span><i className="orbit" />Earth / Mars orbits · Moon path</span><span><i className="sun" />Sun direction</span><span><i className="earth" />Earth direction</span><span><i className="horizon" />Local horizon</span>
    </div>
    {seriesError && <div className="scene-error" role="alert">
@@ -325,10 +392,12 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
    <div className="readout-grid">
     <article className="metric metric-sun"><span>Solar elevation</span>
      <strong>{sunAngles ? deg(sunAngles.elevationDeg) : '—'}</strong>
-     <small>{sunAngles ? 'Azimuth ' + deg(sunAngles.azimuthDeg) + ' · ' : ''}{location ? event('sun', ['sunset', 'sunrise']) : 'Select a site'}</small></article>
+     <small>{sunAngles ? 'Azimuth ' + deg(sunAngles.azimuthDeg) + ' · ' : ''}{location ? event('sun', ['sunset', 'sunrise']) : 'Select a site'}</small>
+     {location && terrainEvent('sun', ['sunset', 'sunrise']) && <small className="terrain-event">{terrainEvent('sun', ['sunset', 'sunrise'])}</small>}</article>
     <article className="metric metric-earth"><span>Earth elevation</span>
      <strong>{earthAngles ? deg(earthAngles.elevationDeg) : '—'}</strong>
-     <small>{earthAngles ? 'Azimuth ' + deg(earthAngles.azimuthDeg) + ' · ' : ''}{location ? event('earth', ['Earthset', 'Earthrise']) : 'Select a site'}</small></article>
+     <small>{earthAngles ? 'Azimuth ' + deg(earthAngles.azimuthDeg) + ' · ' : ''}{location ? event('earth', ['Earthset', 'Earthrise']) : 'Select a site'}</small>
+     {location && terrainEvent('earth', ['Earthset', 'Earthrise']) && <small className="terrain-event">{terrainEvent('earth', ['Earthset', 'Earthrise'])}</small>}</article>
     <article className="metric"><span>Ideal horizontal panel</span>
      <strong>{siteGeo && !playing ? siteGeo.power.horizontalPanelWm2.toFixed(0) + ' W/m²' : '—'}</strong>
      <small>{siteGeo ? `Solar flux ${siteGeo.power.solarFluxWm2.toFixed(0)} W/m² · ${siteGeo.power.assumptions}` : 'Needs a selected site'}</small></article>
@@ -338,8 +407,14 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
     <article className={'metric' + (siteGeo?.terrain ? '' : ' metric-unavailable')}><span>Terrain · LOLA</span>
      <strong className="small-strong">{siteGeo?.terrain ? `Slope ${siteGeo.terrain.regionalSlopeDeg.toFixed(1)}°` : location ? 'Not available' : '—'}</strong>
      <small>{siteGeo?.terrain
-      ? `Elevation ${(siteGeo.terrain.elevationM / 1000).toFixed(2)} km · slope over ~${siteGeo.terrain.baselineKm.toFixed(1)} km (lander-scale slopes can be steeper) · Temperature & PSR: not available (no Diviner/PSR product)`
-      : 'Elevation and regional slope need the LOLA DEM. Temperature & PSR: not available.'}</small></article>
+      ? `Elevation ${(siteGeo.terrain.elevationM / 1000).toFixed(2)} km · slope over ~${siteGeo.terrain.baselineKm.toFixed(1)} km (lander-scale slopes can be steeper)`
+      : 'Elevation and regional slope need the LOLA DEM.'}</small></article>
+    <article className="metric"><span>Temperature · Diviner</span>
+     <strong className="small-strong">{siteGeo?.thermal?.dayMaxK != null ? `${siteGeo.thermal.dayMaxK.toFixed(0)} K / ${siteGeo.thermal.nightMinK?.toFixed(0) ?? '—'} K` : location ? 'Not available' : '—'}</strong>
+     <small>{siteGeo?.thermal ? 'Day max / night min of 2010 cycle averages (measured, ~7.6 km cells); not a forecast for this time' : 'Needs the Diviner maps in modelResources/diviner'}</small></article>
+    <article className={'metric' + (siteGeo?.terrain?.permanentlyShadowed ? ' metric-psr' : '')}><span>Permanent shadow · LOLA</span>
+     <strong className="small-strong">{siteGeo?.terrain?.permanentlyShadowed === true ? 'Yes · PSR' : siteGeo?.terrain?.permanentlyShadowed === false ? 'No' : location ? 'Outside map' : '—'}</strong>
+     <small>{siteGeo?.terrain?.permanentlyShadowed == null ? 'Official PSR map covers 75°S to the pole (120 m); unknown elsewhere, not "false"' : 'Official LOLA PSR map, 120 m (Mazarico et al. 2011)'}</small></article>
    </div>
    {siteError && <p role="alert">{siteError}</p>}
    <p className="scene-source">

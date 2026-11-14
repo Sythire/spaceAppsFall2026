@@ -7,6 +7,7 @@ import {MockNotice,AsyncState} from '../../components/shared/AsyncState';
 import {SitePicker} from '../../components/shared/SitePicker';
 import {ScenarioControls} from '../../components/shared/ScenarioControls';
 import type {AnalysisResult} from '../../types';
+import {TerrainComparison} from '../../components/shared/TerrainComparison';
 
 const rows: {label:string;value:(r:AnalysisResult)=>string}[] = [
  {label:'Sun elevation at start',value:r=>r.sun.elevationDeg.toFixed(2)+'°'},
@@ -34,7 +35,8 @@ export default function Comparison(){
    {resource.data&&<><p className="muted">{resource.data.results[0].interval?.startUtc} · {durationHours/24} days · {resource.data.results[0].mode} results</p><div className="table-scroll"><table>
     <thead><tr><th>Metric</th>{resource.data.results.map(r=><th key={r.request.location.id}>{r.request.location.name}</th>)}</tr></thead>
     <tbody>{rows.map(row=><tr key={row.label}><th>{row.label}</th>{resource.data!.results.map(r=><td key={r.request.location.id}>{row.value(r)}</td>)}</tr>)}</tbody>
-   </table></div><p className="muted">Percentages describe each full analysis interval. Terrain shadows, ground-station contacts and radio link budgets are not included.</p></>}
+   </table></div><p className="muted">Percentages describe each full analysis interval. This table uses a smooth Moon; the terrain-aware table below includes shadows. Ground-station contacts and radio link budgets are not included.</p></>}
+   <TerrainComparison sites={selectedSites} utc={utc} days={durationHours/24}/>
   </Panel>
  </>;
 }

@@ -56,3 +56,11 @@ export function EquipmentPanel({ equipment, mode, onApply, onModeChange }: Props
 function toDraft(e: Equipment): Record<keyof Equipment, string> {
  return { panelTiltDeg: String(e.panelTiltDeg), panelHeightM: String(e.panelHeightM), commMaskDeg: String(e.commMaskDeg), commHeightM: String(e.commHeightM) };
 }
+
+/** Equipment saved by the Explorer page (same browser), used by other pages such as Comparison. */
+export function loadSavedEquipment(): Equipment {
+ try {
+  const v = JSON.parse(localStorage.getItem('lunarsite.explorer.equipment.v1') ?? 'null') as { equipment?: Partial<Equipment> } | null;
+  return validateEquipment({ ...DEFAULT_EQUIPMENT, ...(v?.equipment ?? {}) }).value ?? DEFAULT_EQUIPMENT;
+ } catch { return DEFAULT_EQUIPMENT; }
+}

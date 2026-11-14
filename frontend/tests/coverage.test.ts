@@ -69,3 +69,29 @@ test('daily summary rolls hourly samples into days', () => {
   { day: 2, sunlitH: 6, energyWh: 600, earthH: 24 },
  ]);
 });
+
+test('PSR highlight: unshadowed and NaN cells are transparent, opacity rises with shadowed share', async () => {
+ const { psrRgba } = await import('../src/utils/coverageColors.ts');
+ const px = psrRgba(new Float32Array([0, NaN, 0.1, 1]));
+ assert.equal(px[3], 0); assert.equal(px[7], 0);
+ assert.ok(px[11] > 0 && px[11] < px[15]);
+ assert.equal(px[15], 235);
+});
+
+test('Diviner temperature scale spans lunar cold traps to daytime highs', async () => {
+ const { thermalSpec, colorAt } = await import('../src/utils/coverageColors.ts');
+ const s = thermalSpec();
+ assert.ok(s.min <= 20 && s.max >= 395 && s.unit === 'K');
+ assert.notDeepEqual(colorAt(s.stops, (40 - s.min) / (s.max - s.min)), colorAt(s.stops, (390 - s.min) / (s.max - s.min)));
+});
+
+test('saved equipment falls back to defaults when nothing (or garbage) is stored', async () => {
+ const { loadSavedEquipment } = await import('../src/pages/LunarMap/EquipmentPanel.tsx');
+ const store = new Map<string, string>();
+ (globalThis as unknown as { localStorage: Storage }).localStorage = { getItem: k => store.get(k) ?? null, setItem: (k, v) => void store.set(k, v) } as Storage;
+ assert.deepEqual(loadSavedEquipment(), DEFAULT_EQUIPMENT);
+ store.set('lunarsite.explorer.equipment.v1', JSON.stringify({ equipment: { panelTiltDeg: 45, commMaskDeg: 500 } }));
+ assert.deepEqual(loadSavedEquipment(), DEFAULT_EQUIPMENT); // out-of-range value rejects the whole set
+ store.set('lunarsite.explorer.equipment.v1', JSON.stringify({ equipment: { panelTiltDeg: 45 } }));
+ assert.equal(loadSavedEquipment().panelTiltDeg, 45);
+});

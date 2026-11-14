@@ -12,10 +12,13 @@ class Location(BaseModel):
     latitudeDeg: float = Field(ge=-90, le=90)
     longitudeDeg: float = Field(ge=-180, le=180)
     frame: Literal["MOON_ME"]
-    kind: Optional[Literal["historical", "exploratory"]] = None
+    kind: Optional[Literal["historical", "exploratory", "clps-landed", "clps-planned"]] = None
     source: Optional[str] = None
     coordinateFrame: Optional[str] = None
     coordinateNote: Optional[str] = None
+    # Catalogue metadata on CLPS sites (see catalog.py); informational only.
+    status: Optional[str] = Field(default=None, max_length=300)
+    program: Optional[str] = Field(default=None, max_length=100)
 
 
 class AnalysisRequest(BaseModel):

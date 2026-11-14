@@ -99,9 +99,9 @@ test('formatUtc trims to minutes and labels UTC', () => {
 });
 
 // ---------- layer catalogue ----------
-test('all four map layers are available', () => {
+test('all six map layers are available', () => {
  const byId = Object.fromEntries(mapLayers.map(l => [l.id, l.available]));
- assert.deepEqual(byId, { illumination: true, elevation: true, power: true, 'earth-visibility': true });
+ assert.deepEqual(byId, { illumination: true, elevation: true, power: true, 'earth-visibility': true, psr: true, thermal: true });
 });
 
 // ---------- compact scale ----------

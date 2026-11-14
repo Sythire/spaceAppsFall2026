@@ -7,7 +7,9 @@ export const mapLayers: MapLayerDefinition[] = [
 {id:'illumination',name:'Illumination',available:true},
 {id:'elevation',name:'Elevation',available:true},
 {id:'power',name:'Solar power (terrain-aware)',available:true},
-{id:'earth-visibility',name:'Earth communication (terrain-aware)',available:true}];
+{id:'earth-visibility',name:'Earth communication (terrain-aware)',available:true},
+{id:'psr',name:'Permanent shadow (LOLA PSR)',available:true},
+{id:'thermal',name:'Surface temperature (Diviner)',available:true}];
 const fixtures = [
 {sun:8.4,earth:4.1,light:72,visibility:61,slope:7.2},
 {sun:5.2,earth:2.8,light:61,visibility:53,slope:11.8},

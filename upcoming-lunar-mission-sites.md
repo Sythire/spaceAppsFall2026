@@ -3,7 +3,7 @@
 Research note for future map/model integration. **This is not wired into the website model.**
 
 **Checked:** November 14, 2026  
-**Scope:** Future lunar surface missions currently shown on `frontend/src/pages/Missions/index.tsx`, plus named NASA/CLPS missions that could matter to a broader “what’s next for the Moon” view. NASA and commercial schedules change; recheck before publishing or mapping.
+**Scope:** Research for a future Missions page, plus named NASA/CLPS missions that could matter to a broader “what’s next for the Moon” view. A Missions page is not implemented in this repository yet. NASA and commercial schedules change; recheck before publishing or mapping.
 
 ## Site inventory
 

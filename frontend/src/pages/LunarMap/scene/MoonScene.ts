@@ -2,27 +2,33 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { CSS2DObject, CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
-import type { ModelManifest, SceneSample, Vec3 } from '../../../types';
+import type { ModelManifest, SceneSample, SpiceQuat, Vec3 } from '../../../types';
 
 /**
- * Moon-anchored three.js scene. World origin is the Moon's center and the world axes are the
- * MOON_ME body-fixed frame, so the Moon never moves: Sun, Earth and Mars move around it.
- * MOON_ME (X toward 0°E, Z north) maps to three.js Y-up as (X, Y, Z) -> (X, Z, -Y).
+ * Sun-centric three.js scene focused on the Moon.
+ *
+ * Coordinates are heliocentric ECLIPJ2000 (Sun at the origin, ecliptic plane horizontal). To keep the
+ * Moon precise and the camera locked on it, rendering uses a floating origin: the Moon's center is drawn
+ * at the world origin and the whole heliocentric system (Sun, planets, orbits) is translated by minus the
+ * Moon's position. That is a pure translation, so every direction and orbit is exactly as in the Sun frame.
+ *
+ * The Moon group is rotated by SPICE's MOON_ME -> ECLIPJ2000 attitude, so lunar lat/lon, sites and the
+ * texture turn with the real Moon. SPICE Z-up axes map to three.js Y-up as (X, Y, Z) -> (X, Z, -Y).
  * One scene unit is one mean lunar radius.
  */
 export const MOON_RADIUS_KM = 1737.4;
+const AU_KM = 149597870.7;
 export type ScaleMode = 'compact' | 'true';
 type BodyKey = 'sun' | 'earth' | 'mars';
 
 const RADIUS_KM: Record<BodyKey, number> = { sun: 695700, earth: 6371.0, mars: 3389.5 };
-/** Compact mode keeps true directions but shortens distances and enlarges bodies so all fit on screen. */
-const COMPACT: Record<BodyKey, { distance: number; radius: number }> = {
- earth: { distance: 9, radius: 0.9 }, mars: { distance: 15, radius: 0.45 }, sun: { distance: 18, radius: 1.8 },
-};
+/** Compact mode: 1 AU = 60 units, Moon drawn 7 units from Earth along its true direction, bodies enlarged. */
+const COMPACT = { auUnits: 60, moonOffset: 7, radius: { sun: 5, earth: 1.4, mars: 0.8 } as Record<BodyKey, number> };
 const FALLBACK_COLOR: Record<BodyKey | 'moon', number> = { moon: 0x8a8a8a, earth: 0x2f6fb5, mars: 0xb5532f, sun: 0xffd27a };
-const MOON_ME_TO_THREE = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
-const THREE_TO_MOON_ME = MOON_ME_TO_THREE.clone().invert();
+const SPICE_TO_THREE = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
+const THREE_TO_SPICE = SPICE_TO_THREE.clone().invert();
 
+/** SPICE (X, Y, Z-up) vector to three.js (Y-up). Used for both MOON_ME and ECLIPJ2000 vectors. */
 export function moonMeToThree(v: Vec3): THREE.Vector3 { return new THREE.Vector3(v[0], v[2], -v[1]); }
 export function latLonToThree(latDeg: number, lonDeg: number, r = 1): THREE.Vector3 {
  const lat = THREE.MathUtils.degToRad(latDeg), lon = THREE.MathUtils.degToRad(lonDeg);
@@ -31,6 +37,11 @@ export function latLonToThree(latDeg: number, lonDeg: number, r = 1): THREE.Vect
 export function threeToLatLon(p: THREE.Vector3): { latitudeDeg: number; longitudeDeg: number } {
  const X = p.x, Y = -p.z, Z = p.y, r = p.length();
  return { latitudeDeg: THREE.MathUtils.radToDeg(Math.asin(Z / r)), longitudeDeg: THREE.MathUtils.radToDeg(Math.atan2(Y, X)) };
+}
+/** SPICE frame rotation quaternion (w, x, y, z) expressed in three.js axes. */
+function spiceQuatToThree(q: SpiceQuat): THREE.Quaternion {
+ const [w, x, y, z] = q;
+ return SPICE_TO_THREE.clone().multiply(new THREE.Quaternion(x, y, z, w)).multiply(THREE_TO_SPICE);
 }
 
 export interface SceneMarker { id: string; name: string; latitudeDeg: number; longitudeDeg: number; }
@@ -44,7 +55,11 @@ export class MoonScene {
  private camera: THREE.PerspectiveCamera;
  private controls: OrbitControls;
  private sunLight = new THREE.DirectionalLight(0xffffff, 3.2);
+ /** Moon-fixed (MOON_ME) content, rotated into the Sun frame, always at the world origin. */
+ private moonFrame = new THREE.Group();
  private moon = new THREE.Group();
+ /** Heliocentric content: Sun at this group's origin; translated so the Moon sits at the world origin. */
+ private helio = new THREE.Group();
  private bodies: Record<BodyKey, THREE.Group> = { sun: new THREE.Group(), earth: new THREE.Group(), mars: new THREE.Group() };
  private earthSpin = new THREE.Group();
  private labels: CSS2DObject[] = [];
@@ -62,10 +77,12 @@ export class MoonScene {
  private options: SceneOptions = { grid: false, paths: true, labels: true, scale: 'compact' };
  private sample: SceneSample | null = null;
  private pathSamples: SceneSample[] = [];
+ private orbitSamples: SceneSample[] = [];
  private pointerDown: { x: number; y: number } | null = null;
  private resizeObserver: ResizeObserver;
  private disposed = false;
  private framed = false;
+ private moonLabel!: CSS2DObject;
 
  constructor(private container: HTMLElement, private onPick: (lat: number, lon: number) => void,
   private onMarker: (id: string) => void, private onModelStatus: (status: ModelStatus) => void) {
@@ -78,18 +95,21 @@ export class MoonScene {
   container.appendChild(this.labelRenderer.domElement);
 
   this.camera = new THREE.PerspectiveCamera(45, 1, 0.001, 5e6);
-  this.camera.position.set(0, 1.2, 4.2);
+  this.camera.position.set(0, 3, 9);
   this.controls = new OrbitControls(this.camera, this.renderer.domElement);
   this.controls.enableDamping = true;
   this.controls.minDistance = 1.08;
   this.controls.maxDistance = 400;
   this.controls.rotateSpeed = 0.5;
   this.controls.zoomSpeed = 0.8;
+  this.controls.target.set(0, 0, 0); // the Moon
 
   this.scene.background = new THREE.Color(0x02040a);
   // Faint fill so the night side is not pure black; the Sun's directional light sets the real terminator.
   this.scene.add(new THREE.AmbientLight(0xffffff, 0.06), this.sunLight, this.sunLight.target);
-  this.scene.add(this.moon, this.grid, this.paths, this.markers, this.site, ...Object.values(this.bodies));
+  this.moonFrame.add(this.moon, this.grid, this.markers, this.site);
+  this.helio.add(this.paths, ...Object.values(this.bodies));
+  this.scene.add(this.moonFrame, this.helio);
   this.bodies.earth.add(this.earthSpin);
 
   this.fallbackSphere(this.moon, 1, FALLBACK_COLOR.moon);
@@ -99,6 +119,8 @@ export class MoonScene {
   this.addLabel(this.bodies.earth, 'Earth', 'earth');
   this.addLabel(this.bodies.sun, 'Sun', 'sun');
   this.addLabel(this.bodies.mars, 'Mars', 'mars');
+  this.moonLabel = this.addLabel(this.moonFrame, 'Moon', 'moon');
+  this.moonLabel.center.set(0.5, 3.2);
   this.buildGrid();
   this.siteArrows = {
    sun: new THREE.ArrowHelper(new THREE.Vector3(0, 1, 0), new THREE.Vector3(), 0.35, 0xffc857, 0.06, 0.035),
@@ -247,12 +269,15 @@ export class MoonScene {
   this.applySample();
  }
 
+ /** Short window (the playback range): draws the Moon's path through the Sun frame. */
  setPathSamples(samples: SceneSample[]) { this.pathSamples = samples; this.buildPaths(); }
+ /** Long, coarse window (~2 years): draws full Earth and Mars orbits around the Sun. */
+ setOrbitSamples(samples: SceneSample[]) { this.orbitSamples = samples; this.buildPaths(); }
 
  setSample(sample: SceneSample) {
   this.sample = sample;
   this.applySample();
-  if (!this.framed && !this.flight && !this.site.visible) { this.camera.position.copy(this.overviewPosition()); this.framed = true; }
+  if (!this.framed && !this.flight && !this.site.visible) { this.camera.position.copy(this.moonViewPosition()); this.framed = true; }
  }
 
  setMarkers(markers: SceneMarker[], selectedId: string | null) {
@@ -291,27 +316,33 @@ export class MoonScene {
   this.applySample();
  }
 
+ /** Fly to look straight down on a lunar site; the site's direction follows the Moon's current attitude. */
  flyTo(lat: number, lon: number, distance = 1.9) {
   this.framed = true;
-  this.flight = { from: this.camera.position.clone(), to: latLonToThree(lat, lon, distance), t: 0 };
+  const to = latLonToThree(lat, lon, distance).applyQuaternion(this.moonFrame.quaternion);
+  this.flight = { from: this.camera.position.clone(), to, t: 0 };
  }
 
- /** Frame the Moon, Earth and Sun: look from the normal of the plane they span (fallback: above the north pole). */
- private overviewPosition(): THREE.Vector3 {
+ /** Close Moon view from the sunlit side, tilted toward ecliptic north, with Earth roughly in frame. */
+ private moonViewPosition(): THREE.Vector3 {
+  const dist = this.options.scale === 'true' ? 6 : 12;
   const s = this.sample;
-  const dist = this.options.scale === 'true' ? 900 : 46;
-  if (!s) return new THREE.Vector3(0, 0.5, 1).normalize().multiplyScalar(dist);
-  const sun = moonMeToThree(s.sun).normalize(), earth = moonMeToThree(s.earth).normalize();
-  let normal = new THREE.Vector3().crossVectors(sun, earth);
-  if (normal.length() < 0.2) normal = new THREE.Vector3(0, 1, 0);
-  normal.normalize();
-  if (normal.y < 0) normal.negate();
-  const bisector = sun.clone().add(earth).normalize();
-  return normal.multiplyScalar(0.95).add(bisector.multiplyScalar(-0.3)).normalize().multiplyScalar(dist);
+  if (!s) return new THREE.Vector3(0, 0.4, 1).normalize().multiplyScalar(dist);
+  const toSun = moonMeToThree(s.helio.moon).negate().normalize();
+  const toEarth = moonMeToThree([s.helio.earth[0] - s.helio.moon[0], s.helio.earth[1] - s.helio.moon[1], s.helio.earth[2] - s.helio.moon[2]]).normalize();
+  return toSun.multiplyScalar(0.55).add(toEarth.multiplyScalar(-0.25)).add(new THREE.Vector3(0, 0.6, 0)).normalize().multiplyScalar(dist);
  }
 
  resetView() {
-  this.flight = { from: this.camera.position.clone(), to: this.overviewPosition(), t: 0 };
+  this.flight = { from: this.camera.position.clone(), to: this.moonViewPosition(), t: 0 };
+ }
+
+ /** Pull back to see the Sun and orbits while still orbiting around the Moon. */
+ systemView() {
+  const dist = this.options.scale === 'true' ? 2.2e5 : 150;
+  const s = this.sample;
+  const toSun = s ? moonMeToThree(s.helio.moon).negate().normalize() : new THREE.Vector3(1, 0, 0);
+  this.flight = { from: this.camera.position.clone(), to: toSun.multiplyScalar(0.35).add(new THREE.Vector3(0, 1, 0)).normalize().multiplyScalar(dist), t: 0 };
  }
 
  dispose() {
@@ -336,44 +367,58 @@ export class MoonScene {
  }
 
  // ---------- internals ----------
- private displayPosition(key: BodyKey, km: Vec3): THREE.Vector3 {
+ /** Heliocentric display position (Sun at origin) for a heliocentric km vector. */
+ private helioDisplay(km: Vec3): THREE.Vector3 {
   const v = moonMeToThree(km);
-  return this.options.scale === 'true' ? v.multiplyScalar(1 / MOON_RADIUS_KM) : v.normalize().multiplyScalar(COMPACT[key].distance);
+  if (this.options.scale === 'true') return v.multiplyScalar(1 / MOON_RADIUS_KM);
+  const r = v.length();
+  return r === 0 ? v : v.multiplyScalar((COMPACT.auUnits * (r / AU_KM)) / r);
+ }
+
+ /** The Moon's display position: true scale, or Earth's compact position plus an enlarged true offset. */
+ private moonDisplay(s: SceneSample): THREE.Vector3 {
+  if (this.options.scale === 'true') return this.helioDisplay(s.helio.moon);
+  const offset = moonMeToThree([s.helio.moon[0] - s.helio.earth[0], s.helio.moon[1] - s.helio.earth[1], s.helio.moon[2] - s.helio.earth[2]]);
+  return this.helioDisplay(s.helio.earth).add(offset.normalize().multiplyScalar(COMPACT.moonOffset));
  }
 
  private applyScale() {
   for (const key of Object.keys(this.bodies) as BodyKey[]) {
-   const r = this.options.scale === 'true' ? RADIUS_KM[key] / MOON_RADIUS_KM : COMPACT[key].radius;
+   const r = this.options.scale === 'true' ? RADIUS_KM[key] / MOON_RADIUS_KM : COMPACT.radius[key];
    const target = key === 'earth' ? this.earthSpin : this.bodies[key];
    target.scale.setScalar(r);
   }
-  this.controls.maxDistance = this.options.scale === 'true' ? 2e5 : 400;
+  this.controls.maxDistance = this.options.scale === 'true' ? 3e5 : 400;
  }
 
  private buildPaths() {
   this.paths.clear();
-  if (this.pathSamples.length < 2) return;
-  const colors: Record<BodyKey, number> = { sun: 0xffc857, earth: 0x6fb7ff, mars: 0xd27a5a };
-  for (const key of ['sun', 'earth'] as BodyKey[]) {
-   const pts = this.pathSamples.map(s => this.displayPosition(key, s[key]));
-   this.paths.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
-    new THREE.LineBasicMaterial({ color: colors[key], transparent: true, opacity: 0.45 })));
+  const line = (pts: THREE.Vector3[], color: number, opacity: number) => this.paths.add(new THREE.Line(
+   new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color, transparent: true, opacity })));
+  if (this.orbitSamples.length > 1) {
+   line(this.orbitSamples.map(s => this.helioDisplay(s.helio.earth)), 0x6fb7ff, 0.35);
+   line(this.orbitSamples.map(s => this.helioDisplay(s.helio.mars)), 0xd27a5a, 0.35);
   }
+  if (this.pathSamples.length > 1) line(this.pathSamples.map(s => this.moonDisplay(s)), 0xe6e6e6, 0.6);
  }
 
  private applySample() {
   const s = this.sample;
   if (!s) return;
-  for (const key of Object.keys(this.bodies) as BodyKey[]) this.bodies[key].position.copy(this.displayPosition(key, s[key]));
-  const sunDir = moonMeToThree(s.sun).normalize();
-  this.sunLight.position.copy(sunDir.clone().multiplyScalar(50));
+  // Heliocentric system, translated so the Moon is at the world origin.
+  this.helio.position.copy(this.moonDisplay(s)).negate();
+  this.bodies.sun.position.set(0, 0, 0);
+  this.bodies.earth.position.copy(this.helioDisplay(s.helio.earth));
+  this.bodies.mars.position.copy(this.helioDisplay(s.helio.mars));
+  // The Moon's true attitude in the Sun frame (includes libration and its 27.3-day spin).
+  this.moonFrame.quaternion.copy(spiceQuatToThree(s.moonRotationQuat));
+  this.earthSpin.quaternion.copy(spiceQuatToThree(s.earthRotationQuat));
+  // Sunlight arrives from the Sun's true direction as seen from the Moon.
+  const toSun = moonMeToThree(s.helio.moon).negate().normalize();
+  this.sunLight.position.copy(toSun.multiplyScalar(50));
   this.sunLight.target.position.set(0, 0, 0);
-  // IAU_EARTH -> MOON_ME from SPICE, conjugated into three.js axes. Model axes assumed glTF Y-up with
-  // the prime meridian on +X, matching the Moon export; verify after each new Earth export.
-  const [w, x, y, z] = s.earthRotationQuat;
-  const qm = new THREE.Quaternion(x, y, z, w);
-  this.earthSpin.quaternion.copy(MOON_ME_TO_THREE).multiply(qm).multiply(THREE_TO_MOON_ME);
   if (this.site.visible) {
+   // Site arrows live in the Moon-fixed group, so use the Moon-fixed (MOON_ME) vectors directly.
    const sitePos = this.site.position;
    for (const key of ['sun', 'earth'] as const) {
     const target = moonMeToThree(s[key]).multiplyScalar(1 / MOON_RADIUS_KM);
@@ -393,7 +438,10 @@ export class MoonScene {
   const markerHit = this.raycaster.intersectObjects(this.markers.children.filter(c => c.userData.markerId), false)[0];
   if (markerHit) { this.onMarker(markerHit.object.userData.markerId as string); return; }
   const hit = this.raycaster.intersectObject(this.moon, true)[0];
-  if (hit) { const ll = threeToLatLon(hit.point); this.onPick(ll.latitudeDeg, ll.longitudeDeg); }
+  if (hit) {
+   const ll = threeToLatLon(this.moonFrame.worldToLocal(hit.point.clone()));
+   this.onPick(ll.latitudeDeg, ll.longitudeDeg);
+  }
  };
 
  private resize() {
@@ -412,25 +460,28 @@ export class MoonScene {
   if (this.flight) {
    this.flight.t = Math.min(1, this.flight.t + dt / 1.4); // 1.4 s flight, independent of frame rate
    const k = 1 - Math.pow(1 - this.flight.t, 3);
-   // Arc along the sphere rather than cutting through the Moon.
-   const len = THREE.MathUtils.lerp(this.flight.from.length(), this.flight.to.length(), k);
+   // Arc around the Moon rather than cutting through it; distance eases geometrically for big zooms.
+   const len = this.flight.from.length() * Math.pow(this.flight.to.length() / this.flight.from.length(), k);
    this.camera.position.copy(this.flight.from.clone().normalize().lerp(this.flight.to.clone().normalize(), k).normalize().multiplyScalar(len));
-   this.controls.target.set(0, 0, 0);
    if (this.flight.t >= 1) this.flight = null;
   }
-  const t = performance.now() / 1000;
+  this.controls.target.set(0, 0, 0); // stay focused on the Moon
+  const t = now / 1000;
   for (const c of this.markers.children) if (c.userData.pulse !== undefined) {
    const s = 1 + 0.6 * (0.5 + 0.5 * Math.sin(t * 2.4 + c.userData.pulse));
    c.scale.setScalar(s);
   }
-  // Keep the site markers and arrows a readable size regardless of zoom.
-  const dist = this.camera.position.distanceTo(this.site.position);
-  const siteScale = THREE.MathUtils.clamp(dist / 1.6, 0.08, 1.4);
-  this.site.scale.setScalar(siteScale);
-  this.controls.zoomSpeed = THREE.MathUtils.clamp(this.camera.position.length() / 4, 0.15, 1.2);
+  this.scene.updateMatrixWorld();
   const cam = this.camera.position;
+  // Keep the site marker and arrows a readable size regardless of zoom.
+  const siteWorld = this.site.getWorldPosition(new THREE.Vector3());
+  this.site.scale.setScalar(THREE.MathUtils.clamp(cam.distanceTo(siteWorld) / 1.6, 0.08, 1.4));
+  this.controls.zoomSpeed = THREE.MathUtils.clamp(cam.length() / 4, 0.15, 1.2);
+  // The Moon label only helps when zoomed out; up close it would cover the surface.
+  this.moonLabel.visible = this.options.labels && cam.length() > 4;
+  const p = new THREE.Vector3();
   for (const { label, grid } of this.surfaceLabels) {
-   const p = label.position;
+   label.getWorldPosition(p);
    const facing = cam.clone().sub(p).dot(p) > 0;
    label.visible = this.options.labels && (!grid || this.options.grid) && facing;
   }

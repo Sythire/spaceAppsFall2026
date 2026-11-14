@@ -35,7 +35,7 @@ def prep_kernels ():
 """
 def get_moon_position(time_viewed):
     estimated_time = spice.str2et(time_viewed)
-    moon_position, _ = spice.spkpos('MOON', estimated_time, 'J2000', 'NONE', 'MOON')
+    moon_position, _ = spice.spkpos('MOON', estimated_time, 'J2000', 'NONE', 'SUN')
     return moon_position
 
 """
@@ -50,7 +50,7 @@ def get_moon_position(time_viewed):
 """
 def get_earth_position(time_viewed):
     estimated_time = spice.str2et(time_viewed)
-    earth_position, _ = spice.spkpos('EARTH', estimated_time, 'J2000', 'NONE', 'MOON')
+    earth_position, _ = spice.spkpos('EARTH', estimated_time, 'J2000', 'NONE', 'SUN')
     return earth_position
 
 """
@@ -65,7 +65,7 @@ def get_earth_position(time_viewed):
 """
 def get_sun_position(time_viewed):
     estimated_time = spice.str2et(time_viewed)
-    sun_position, _ = spice.spkpos('SUN', estimated_time, 'J2000', 'NONE', 'MOON')
+    sun_position, _ = spice.spkpos('SUN', estimated_time, 'J2000', 'NONE', 'SUN')
     return sun_position
 
 """
@@ -80,7 +80,7 @@ def get_sun_position(time_viewed):
 """
 def get_mars_position(time_viewed):
     estimated_time = spice.str2et(time_viewed)
-    mars_position, _ = spice.spkpos('MARS BARYCENTER', estimated_time, 'J2000', 'NONE', 'MOON')
+    mars_position, _ = spice.spkpos('MARS BARYCENTER', estimated_time, 'J2000', 'NONE', 'SUN')
     return mars_position
 
 def run_test():

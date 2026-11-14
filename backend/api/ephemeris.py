@@ -29,6 +29,10 @@ ABCORR = "LT+S"
 MOON_MEAN_RADIUS_KM = 1737.4
 SOLAR_CONSTANT_W_M2 = 1361.0
 BODIES = {"sun": "SUN", "earth": "EARTH", "mars": "MARS BARYCENTER"}
+# Sun-centric display frame: origin at the Sun, ecliptic-of-J2000 axes (ecliptic plane = XY), geometric
+# positions. Site angles and rise/set events are still computed Moon-fixed above, which is what a lander sees.
+HELIO_FRAME = "ECLIPJ2000"
+HELIO_BODIES = {"moon": "MOON", "earth": "EARTH", "mars": "MARS BARYCENTER"}
 SOURCE = "NAIF SPICE: DE440s ephemeris, moon_pa_de440_200625 orientation, MOON_ME frame (moon_de440_250416.tf)"
 HORIZON_METHOD = "Mean lunar sphere (R = 1737.4 km), body disk center, no terrain, no refraction"
 
@@ -64,6 +68,15 @@ def _et_to_iso(et: float) -> str:
 def _positions(target: str, ets: list[float]) -> np.ndarray:
     pos, _ = spice.spkpos(target, ets, FRAME, ABCORR, "MOON")
     return np.atleast_2d(np.asarray(pos, dtype=float))
+
+
+def _helio(target: str, ets: list[float]) -> np.ndarray:
+    pos, _ = spice.spkpos(target, ets, HELIO_FRAME, "NONE", "SUN")
+    return np.atleast_2d(np.asarray(pos, dtype=float))
+
+
+def _quat(frm: str, to: str, et: float) -> list[float]:
+    return [float(x) for x in spice.m2q(spice.pxform(frm, to, et))]  # SPICE order: w, x, y, z
 
 
 def _site_basis(lat_deg: float, lon_deg: float) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -120,7 +133,9 @@ def series(start: datetime, hours: float, step_hours: float, lat: float | None, 
     n = int(hours // step_hours) + 1
     ets = [et0 + i * step_hours * 3600.0 for i in range(n)]
     pos = {k: _positions(t, ets) for k, t in BODIES.items()}
-    quats = [[float(x) for x in spice.m2q(spice.pxform("IAU_EARTH", FRAME, et))] for et in ets]
+    helio = {k: _helio(t, ets) for k, t in HELIO_BODIES.items()}
+    earth_q = [_quat("IAU_EARTH", HELIO_FRAME, et) for et in ets]
+    moon_q = [_quat(FRAME, HELIO_FRAME, et) for et in ets]
     samples = []
     site = None
     if lat is not None and lon is not None:
@@ -129,12 +144,14 @@ def series(start: datetime, hours: float, step_hours: float, lat: float | None, 
         site = (sel, saz, eel, eaz)
     for i, et in enumerate(ets):
         s = {"utc": _et_to_iso(et), "sun": pos["sun"][i].tolist(), "earth": pos["earth"][i].tolist(),
-             "mars": pos["mars"][i].tolist(), "earthRotationQuat": quats[i]}
+             "mars": pos["mars"][i].tolist(),
+             "helio": {k: helio[k][i].tolist() for k in HELIO_BODIES},
+             "moonRotationQuat": moon_q[i], "earthRotationQuat": earth_q[i]}
         if site:
             s["site"] = {"sun": {"elevationDeg": float(site[0][i]), "azimuthDeg": float(site[1][i])},
                          "earth": {"elevationDeg": float(site[2][i]), "azimuthDeg": float(site[3][i])}}
         samples.append(s)
-    return {"frame": FRAME, "units": "km", "stepHours": step_hours, "source": SOURCE,
+    return {"frame": FRAME, "helioFrame": HELIO_FRAME, "units": "km", "stepHours": step_hours, "source": SOURCE,
             "horizonMethod": HORIZON_METHOD if site else None, "samples": samples}
 
 

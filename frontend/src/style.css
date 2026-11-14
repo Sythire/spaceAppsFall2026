@@ -29,3 +29,6 @@ code{font-size:11px;background:#0a131e;padding:1px 5px;border-radius:3px;color:#
 .scene-source{font-size:10px;color:#7f97ad;margin:12px 0 0}
 @media(max-width:1350px){.readout-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){.scene-viewport{min-height:460px;height:60vh}.scene-toggles{top:auto;bottom:10px;right:10px;max-width:180px}.scene-legend{display:none}.readout-grid{grid-template-columns:1fr}}
+.scene-legend .orbit{background:#9fb4c6;height:1px}
+.scene-label-moon{color:#e6e6e6;border-color:#4a5a6a}
+.status-live{color:#9fd3c7}.status-live i{background:#6fcf97}

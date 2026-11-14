@@ -26,6 +26,8 @@ export function sampleAt(samples: SceneSample[], index: number): SceneSample {
  const nearest = t < 0.5 ? a : b;
  const utc = new Date(Date.parse(a.utc) + (Date.parse(b.utc) - Date.parse(a.utc)) * t).toISOString();
  return { utc, sun: lerp3(a.sun, b.sun, t), earth: lerp3(a.earth, b.earth, t), mars: lerp3(a.mars, b.mars, t),
+  helio: { moon: lerp3(a.helio.moon, b.helio.moon, t), earth: lerp3(a.helio.earth, b.helio.earth, t), mars: lerp3(a.helio.mars, b.helio.mars, t) },
+  moonRotationQuat: slerp(a.moonRotationQuat, b.moonRotationQuat, t),
   earthRotationQuat: slerp(a.earthRotationQuat, b.earthRotationQuat, t), site: nearest.site };
 }
 

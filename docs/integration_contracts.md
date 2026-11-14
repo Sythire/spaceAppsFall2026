@@ -60,7 +60,7 @@ These are live, not proposed. Units are km and degrees; vectors are MOON_ME, Moo
 | GET /health | none | kernel list, frame, coverage |
 | GET /models | none | ModelManifest: path of each GLB or null |
 | GET /scene | utc? (default now) | Body vectors, distances, sub-points, IAU_EARTH→MOON_ME quaternion |
-| GET /scene/series | start, hours (≤2880), stepHours, lat?, lon? | SceneSeries: samples with body vectors, Earth quaternion, optional site angles |
+| GET /scene/series | start, hours (≤19200), stepHours (≤240), lat?, lon? | SceneSeries: per sample, Moon-centered MOON_ME vectors (sun/earth/mars, LT+S), Sun-centered ECLIPJ2000 positions (`helio`: moon/earth/mars, geometric), MOON_ME→ECLIPJ2000 and IAU_EARTH→ECLIPJ2000 quaternions, optional site angles |
 | GET /site | lat, lon, utc? | SiteGeometry: Sun/Earth elevation/azimuth, next rise/set (35-day search), ideal horizontal-panel flux |
 
-Out-of-coverage times (outside 1849–2150) return HTTP 422 with the SPICE error. The 3D view uses these directly with no mock fallback. Types live in frontend/src/types/index.ts.
+Out-of-coverage times (outside 1849–2150) return HTTP 422 with the SPICE error. The 3D view is Sun-centered (ECLIPJ2000) with the camera locked on the Moon; site angles stay Moon-fixed. It uses these endpoints directly with no mock fallback. Types live in frontend/src/types/index.ts.

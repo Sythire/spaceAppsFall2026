@@ -14,11 +14,18 @@ export interface Recommendation { location: LunarLocation; reason: string; mode:
 
 /** Moon-anchored scene geometry from the SPICE service. Vectors are MOON_ME, Moon-centered, km. */
 export type Vec3 = [number, number, number];
-/** SPICE quaternion order: w, x, y, z. Rotates IAU_EARTH vectors into MOON_ME. */
+/** SPICE quaternion order: w, x, y, z. */
 export type SpiceQuat = [number, number, number, number];
 export interface HorizonAngles { elevationDeg: number; azimuthDeg: number; }
-export interface SceneSample { utc: string; sun: Vec3; earth: Vec3; mars: Vec3; earthRotationQuat: SpiceQuat; site?: { sun: HorizonAngles; earth: HorizonAngles }; }
-export interface SceneSeries { frame: 'MOON_ME'; units: 'km'; stepHours: number; source: string; horizonMethod: string | null; samples: SceneSample[]; }
+/** Sun-centered positions (ECLIPJ2000 axes, km, geometric). The Sun is the origin. */
+export interface HelioPositions { moon: Vec3; earth: Vec3; mars: Vec3; }
+/**
+ * sun/earth/mars: Moon-centered MOON_ME vectors (km, LT+S), used for site geometry and sub-points.
+ * helio: Sun-centered display positions. moonRotationQuat: MOON_ME -> ECLIPJ2000.
+ * earthRotationQuat: IAU_EARTH -> ECLIPJ2000.
+ */
+export interface SceneSample { utc: string; sun: Vec3; earth: Vec3; mars: Vec3; helio: HelioPositions; moonRotationQuat: SpiceQuat; earthRotationQuat: SpiceQuat; site?: { sun: HorizonAngles; earth: HorizonAngles }; }
+export interface SceneSeries { frame: 'MOON_ME'; helioFrame: 'ECLIPJ2000'; units: 'km'; stepHours: number; source: string; horizonMethod: string | null; samples: SceneSample[]; }
 export interface BodyEvents extends HorizonAngles { distanceKm: number; aboveHorizon: boolean; nextSet: string | null; nextRise: string | null; }
 export interface SiteGeometry {
  utc: string; location: { latitudeDeg: number; longitudeDeg: number; frame: 'MOON_ME' };

@@ -73,8 +73,8 @@ def scene(utc: str | None = None):
 
 
 @app.get("/api/v1/scene/series")
-def scene_series(start: str | None = None, hours: float = Query(720, gt=0, le=24 * 120),
-                 stepHours: float = Query(2, ge=0.25, le=48),
+def scene_series(start: str | None = None, hours: float = Query(720, gt=0, le=24 * 800),
+                 stepHours: float = Query(2, ge=0.25, le=240),
                  lat: float | None = Query(None, ge=-90, le=90), lon: float | None = Query(None, ge=-180, le=180)):
     if hours / stepHours > 4000:
         raise HTTPException(422, "Too many samples; increase stepHours or reduce hours")

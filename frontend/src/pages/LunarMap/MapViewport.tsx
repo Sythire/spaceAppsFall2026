@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pause, Play, RotateCcw, Crosshair, CalendarCheck } from 'lucide-react';
+import { Pause, Play, Moon, Sun, Crosshair, CalendarCheck } from 'lucide-react';
 import type { LunarLocation, MapLayer, SceneSeries, SiteGeometry, Vec3 } from '../../types';
 import { modelUrl, sceneService } from '../../services/sceneService';
 import { MoonScene, type ModelStatus, type ScaleMode } from './scene/MoonScene';
@@ -17,6 +17,8 @@ export interface MapViewportProps {
 
 const WINDOW_HOURS = 720; // 30 days ≈ one synodic month
 const STEP_HOURS = 1;
+const ORBIT_HOURS = 24 * 700; // covers Mars's 687-day orbit
+const ORBIT_STEP_HOURS = 72;
 const SPEEDS = [{ label: '1 h/s', value: 1 }, { label: '6 h/s', value: 6 }, { label: '1 day/s', value: 24 }, { label: '3 days/s', value: 72 }];
 
 const subPoint = (v: Vec3) => {
@@ -70,6 +72,15 @@ export function MapViewport({ location, onSelect, utc, onUtcChange, markers }: M
    .catch((e: unknown) => { if (current) setSeriesError(e instanceof Error ? e.message : 'Unable to load ephemeris'); });
   return () => { current = false; };
  }, [utc, lat, lon, attempt]);
+
+ // Coarse two-year window for drawing Earth and Mars orbits around the Sun.
+ useEffect(() => {
+  let current = true;
+  sceneService.series(utc, ORBIT_HOURS, ORBIT_STEP_HOURS)
+   .then(s => { if (current) engineRef.current?.setOrbitSamples(s.samples); })
+   .catch(() => { /* orbits are decorative; the main series reports errors */ });
+  return () => { current = false; };
+ }, [utc, attempt]);
 
  const sample = useMemo(() => series ? sampleAt(series.samples, playhead / series.stepHours) : null, [series, playhead]);
  const viewingUtc = sample?.utc ?? utc;
@@ -135,20 +146,21 @@ export function MapViewport({ location, onSelect, utc, onUtcChange, markers }: M
 
  return <div className="scene-wrap">
   <div className="map-viewport scene-viewport" ref={containerRef} role="application"
-   aria-label="3D Moon-anchored view. Drag to orbit, scroll to zoom, click the Moon to select a location. Coordinates can also be entered in the form.">
+   aria-label="3D Sun-centered view focused on the Moon. Drag to orbit the Moon, scroll to zoom, click the Moon to select a location. Coordinates can also be entered in the form.">
    <div className="scene-toggles">
     <label>Scale<select value={scale} onChange={e => setScale(e.target.value as ScaleMode)}>
      <option value="compact">Compact distances</option><option value="true">True scale</option></select></label>
     <label className="checkbox"><input type="checkbox" checked={grid} onChange={e => setGrid(e.target.checked)} />Lat/lon grid</label>
-    <label className="checkbox"><input type="checkbox" checked={paths} onChange={e => setPaths(e.target.checked)} />30-day paths</label>
+    <label className="checkbox"><input type="checkbox" checked={paths} onChange={e => setPaths(e.target.checked)} />Orbits & Moon path</label>
     <label className="checkbox"><input type="checkbox" checked={labels} onChange={e => setLabels(e.target.checked)} />Labels</label>
     <div className="button-row">
-     <button type="button" onClick={() => engineRef.current?.resetView()}><RotateCcw size={12} aria-hidden /> Reset view</button>
+     <button type="button" onClick={() => engineRef.current?.resetView()}><Moon size={12} aria-hidden /> Moon</button>
+     <button type="button" onClick={() => engineRef.current?.systemView()}><Sun size={12} aria-hidden /> Solar system</button>
      {location && <button type="button" onClick={() => engineRef.current?.flyTo(location.latitudeDeg, location.longitudeDeg)}><Crosshair size={12} aria-hidden /> Site</button>}
     </div>
    </div>
    <div className="scene-legend" aria-hidden>
-    <span><i className="sun" />Sun direction</span><span><i className="earth" />Earth direction</span><span><i className="horizon" />Local horizon</span>
+    <span><i className="orbit" />Earth / Mars orbits · Moon path</span><span><i className="sun" />Sun direction</span><span><i className="earth" />Earth direction</span><span><i className="horizon" />Local horizon</span>
    </div>
    {seriesError && <div className="scene-error" role="alert">
     <strong>Ephemeris service unavailable</strong><p>{seriesError}</p>
@@ -199,7 +211,8 @@ export function MapViewport({ location, onSelect, utc, onUtcChange, markers }: M
    {siteError && <p role="alert">{siteError}</p>}
    <p className="scene-source">
     {series ? series.source : 'Source pending'} · Horizon: {siteGeo?.horizonMethod ?? 'mean lunar sphere, no terrain'} · Azimuth clockwise from north
-    {scale === 'compact' ? ' · Compact scale: true directions, distances and sizes not to scale' : ' · True scale: real distances and radii'}
+    {' · View: Sun-centered ECLIPJ2000, camera locked on the Moon'}
+    {scale === 'compact' ? ' · Compact scale: 1 AU = 60 units, Moon–Earth distance and body sizes enlarged' : ' · True scale: real distances and radii'}
     {modelNote ? ' · ' + modelNote : ''}
    </p>
   </section>

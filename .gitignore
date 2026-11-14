@@ -1,4 +1,6 @@
 # Logs
+.venv/
+__pycache__/
 .npm-cache/
 logs
 *.log

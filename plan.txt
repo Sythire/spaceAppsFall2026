@@ -1,0 +1,17 @@
+- Glowing pings of all landing site of past and future missions (different colors for who the mission was for (NASA, CLPS, a company, etc))
+- 3d visual with a space box that can be rotated around the moon and see the actual sun and earth positions at the time that was selected to view (current if no time is put it, was time and date to be selectable
+  and show the positions of earth and sun based off the moons anchored pos with right rotations at that time and date selected)
+- Want a button to toggle a temperature view (color map), and an illumination map (should be able to be stacked ontop of each other and with the already existing topography map)
+- Have to specifically use datasets and resources the mission provided
+- When you search for coordinates it moves the screen to zoom in on the moon at that coordinates and at the bottom of the screen show the slope, temp, angle of exposure to the sun, angle of exposure to the earth, 
+  whether the location is a permanetly shadowed region (PSR)
+- Should evaluate if open space would be a useful resource for this (or would horizon api or spice be more useful)
+- Possibly a way to input trajectories
+- A moon satellite map, and earth satellite map to be able to check if communication through satellites are possible if direct communication to earth isnt due to not enough visibility angle
+- Adding mars could be good for evaluating trajectories from the moon to mars either launching from the moons surface or slingshotting off the moons gravitational pull but this is a stretch goal
+- Able to calculate solar panel charge rate at location clicked or latitude longitude searched for by typing in solar panel angle (will be added to the exsiting slope of area) and charging efficiency of panels
+  in relation to angle of exposure to the sun. Would like to be able to show a shading map of the varying charge rates across the surface of the moon for the rover at the current input time (or present time)
+- Check if moontrek is useful for identifying info and past and future missions
+- ability to chart and simulate rover paths across input time (stretch goal)
+- Able to filter mission pings by company or year or timerange or mission type (rover, analysis, etc), year of release / progress
+- 

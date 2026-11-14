@@ -59,3 +59,10 @@ code{font-size:11px;background:#0a131e;padding:1px 5px;border-radius:3px;color:#
 .terrain-event{display:block;margin-top:4px;color:#c9b98a!important}
 .metric-psr{border-color:#6b3fa0}.metric-psr strong{color:#d7b4ff}
 .scene-legend .ping{width:8px;height:8px;border-radius:50%}
+.collapsible-head{margin:24px 0 6px}
+.collapsible-toggle{width:100%;display:flex;align-items:center;gap:8px;background:none;border:1px solid #28384b;border-radius:6px;padding:8px 10px;font-size:16px;font-weight:550;color:inherit;text-align:left}
+.collapsible-toggle:hover{border-color:#8abecb}
+.collapsible-count{font-size:10px;font-weight:500;color:#8fa6bb;background:#1a2a3a;border-radius:9px;padding:1px 7px}
+.collapsible-toggle .chevron{margin-left:auto;transition:transform .15s}.collapsible-toggle .chevron.open{transform:rotate(180deg)}
+.collapsible-summary{margin:4px 2px 0}
+#explorer-site-list .site-list{max-height:320px;overflow:auto;padding-right:2px}

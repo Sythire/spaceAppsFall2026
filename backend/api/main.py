@@ -23,6 +23,8 @@ MODEL_FILES = {
     "earth": "earth.glb",
     "sun": "sun.glb",
     "mars": "mars.glb",
+    "mercury": "Mercury_1_4878.glb",
+    "venus": "Venussurface_1_12103.glb",
 }
 
 app = FastAPI(title="LunarSite ephemeris service", version="0.1.0")

@@ -34,7 +34,8 @@ BODIES = {"sun": "SUN", "earth": "EARTH", "mars": "MARS BARYCENTER"}
 # Sun-centric display frame: origin at the Sun, ecliptic-of-J2000 axes (ecliptic plane = XY), geometric
 # positions. Site angles and rise/set events are still computed Moon-fixed above, which is what a lander sees.
 HELIO_FRAME = "ECLIPJ2000"
-HELIO_BODIES = {"moon": "MOON", "earth": "EARTH", "mars": "MARS BARYCENTER"}
+HELIO_BODIES = {"moon": "MOON", "earth": "EARTH", "mars": "MARS BARYCENTER",
+                "mercury": "MERCURY BARYCENTER", "venus": "VENUS BARYCENTER"}
 SOURCE = "NAIF SPICE: DE440s ephemeris, moon_pa_de440_200625 orientation, MOON_ME frame (moon_de440_250416.tf)"
 HORIZON_METHOD = "Mean lunar sphere (R = 1737.4 km), body disk center, no terrain, no refraction"
 

@@ -59,7 +59,7 @@ test('elevationColor clamps outside the range and interpolates inside it', () =>
 // ---------- time interpolation ----------
 const mk = (utc: string, x: number, q: SpiceQuat = [1, 0, 0, 0]): SceneSample => ({
  utc, sun: [x, 0, 0], earth: [0, x, 0], mars: [0, 0, x],
- helio: { moon: [x, x, 0], earth: [x, 0, 0], mars: [0, x, 0] }, moonRotationQuat: q, earthRotationQuat: q,
+ helio: { moon: [x, x, 0], earth: [x, 0, 0], mars: [0, x, 0], mercury: [0, 0, x], venus: [x, 0, x] }, moonRotationQuat: q, earthRotationQuat: q,
  site: { sun: { elevationDeg: x, azimuthDeg: 0 }, earth: { elevationDeg: -x, azimuthDeg: 0 } },
 });
 const samples = [mk('2026-11-14T00:00:00.000Z', 0), mk('2026-11-14T01:00:00.000Z', 10), mk('2026-11-14T02:00:00.000Z', 20)];
@@ -105,10 +105,14 @@ test('all six map layers are available', () => {
 });
 
 // ---------- compact scale ----------
-test('compact scale keeps true Moon/Earth/Mars size ratios and only compresses distance', async () => {
+test('compact scale keeps true Moon/planet size ratios and only compresses distance', async () => {
  const { COMPACT_SCALE, MOON_RADIUS_KM } = await import('../src/pages/LunarMap/scene/MoonScene.ts');
  close(COMPACT_SCALE.radius.earth, 6371.0 / MOON_RADIUS_KM, 1e-9); // ~3.67
  close(COMPACT_SCALE.radius.mars, 3389.5 / MOON_RADIUS_KM, 1e-9);  // ~1.95
+ close(COMPACT_SCALE.radius.mercury, 2439.7 / MOON_RADIUS_KM, 1e-9); // ~1.40
+ close(COMPACT_SCALE.radius.venus, 6051.8 / MOON_RADIUS_KM, 1e-9);   // ~3.48
+ // The capped Sun plus Mercury's disk fit inside Mercury's perihelion (0.307 AU).
+ assert.ok(COMPACT_SCALE.radius.sun + COMPACT_SCALE.radius.mercury < 0.307 * COMPACT_SCALE.auUnits);
  // The Moon (radius 1) never touches the Earth, and the capped Sun stays well inside Earth's orbit.
  assert.ok(COMPACT_SCALE.moonOffset > COMPACT_SCALE.radius.earth + 1 + 5);
  assert.ok(COMPACT_SCALE.radius.sun < COMPACT_SCALE.auUnits / 4);

@@ -114,6 +114,8 @@ class TestSeries:
         assert 0.98 < np.linalg.norm(earth) / AU_KM < 1.02
         assert 356_000 < np.linalg.norm(moon - earth) < 407_000  # perigee..apogee
         assert 1.38 < np.linalg.norm(mars) / AU_KM < 1.67          # perihelion..aphelion
+        assert 0.30 < np.linalg.norm(s["mercury"]) / AU_KM < 0.47  # perihelion..aphelion
+        assert 0.71 < np.linalg.norm(s["venus"]) / AU_KM < 0.73
         # Ecliptic frame: Earth stays in the ecliptic plane (|z| tiny relative to 1 AU).
         assert abs(earth[2]) / AU_KM < 1e-4
 

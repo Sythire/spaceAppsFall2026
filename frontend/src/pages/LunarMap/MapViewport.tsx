@@ -29,7 +29,7 @@ const IDLE: CoverageState = { status: 'idle', error: '', meta: null };
 const WINDOW_HOURS = 720; // 30 days ≈ one synodic month
 const STEP_HOURS = 1;
 const ORBIT_HOURS = 24 * 700; // covers Mars's 687-day orbit
-const ORBIT_STEP_HOURS = 72;
+const ORBIT_STEP_HOURS = 24; // ~88 points around Mercury's 88-day orbit
 const SPEEDS = [{ label: '1 h/s', value: 1 }, { label: '6 h/s', value: 6 }, { label: '1 day/s', value: 24 }, { label: '3 days/s', value: 72 }];
 
 const subPoint = (v: Vec3) => {
@@ -101,7 +101,7 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
     engine.loadSky(modelUrl(manifest.sky)).then(ok => { if (engineRef.current === engine) setSkyState(ok ? 'ready' : 'error'); });
    }
    return engine.loadModels(manifest, modelUrl);
-  }).catch(() => setModels({ moon: 'fallback', earth: 'fallback', sun: 'fallback', mars: 'fallback' }));
+  }).catch(() => setModels({ moon: 'fallback', earth: 'fallback', sun: 'fallback', mars: 'fallback', mercury: 'fallback', venus: 'fallback' }));
   return () => { engine.dispose(); engineRef.current = null; };
  }, []);
 
@@ -358,7 +358,7 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
    </div>}
    <div className="scene-legend" aria-hidden>
     <span><i className="ping" style={{ background: hex(MARKER_COLORS.historical) }} />Apollo</span><span><i className="ping" style={{ background: hex(MARKER_COLORS['clps-landed']) }} />CLPS landed</span><span><i className="ping" style={{ background: hex(MARKER_COLORS['clps-planned']) }} />CLPS planned (target region)</span>
-    <span><i className="orbit" />Earth / Mars orbits · Moon path</span><span><i className="sun" />Sun direction</span><span><i className="earth" />Earth direction</span><span><i className="horizon" />Local horizon</span>
+    <span><i className="orbit" />Mercury / Venus / Earth / Mars orbits · Moon path</span><span><i className="sun" />Sun direction</span><span><i className="earth" />Earth direction</span><span><i className="horizon" />Local horizon</span>
    </div>
    {seriesError && <div className="scene-error" role="alert">
     <strong>Ephemeris service unavailable</strong><p>{seriesError}</p>
@@ -420,7 +420,7 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
    <p className="scene-source">
     {series ? series.source : 'Source pending'} · Horizon: {siteGeo?.horizonMethod ?? 'mean lunar sphere, no terrain'} · Azimuth clockwise from north
     {' · View: Sun-centered ECLIPJ2000, camera locked on the Moon'}
-    {scale === 'compact' ? ' · Compact scale: distances compressed (1 AU = 60 units, Moon–Earth 15 Moon radii); directions and Moon/Earth/Mars size ratios true; Sun size capped' : ' · True scale: real distances and radii'}
+    {scale === 'compact' ? ' · Compact scale: distances compressed (1 AU = 60 units, Moon–Earth 15 Moon radii); directions and planet/Moon size ratios true; Sun size capped' : ' · True scale: real distances and radii'}
     {modelNote ? ' · ' + modelNote : ''}
     {skyState === 'ready' && stars ? ' · Stars: NASA/Goddard SVS Deep Star Maps 2020 (J2000)' : ''}
    </p>

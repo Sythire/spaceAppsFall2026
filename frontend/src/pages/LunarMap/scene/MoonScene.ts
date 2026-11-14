@@ -20,9 +20,9 @@ import type { MapLayer, ModelManifest, SceneSample, SpiceQuat, TerrainGrid, Vec3
 export const MOON_RADIUS_KM = 1737.4;
 const AU_KM = 149597870.7;
 export type ScaleMode = 'compact' | 'true';
-type BodyKey = 'sun' | 'earth' | 'mars';
+type BodyKey = 'sun' | 'earth' | 'mars' | 'mercury' | 'venus';
 
-const RADIUS_KM: Record<BodyKey, number> = { sun: 695700, earth: 6371.0, mars: 3389.5 };
+const RADIUS_KM: Record<BodyKey, number> = { sun: 695700, earth: 6371.0, mars: 3389.5, mercury: 2439.7, venus: 6051.8 };
 /**
  * Compact mode: distances compressed (1 AU = 60 units, Moon drawn 15 units from Earth along its true
  * direction) but sizes keep their true ratios to the Moon (radius 1). The Sun is the one exception: at
@@ -31,10 +31,15 @@ const RADIUS_KM: Record<BodyKey, number> = { sun: 695700, earth: 6371.0, mars: 3
 export const COMPACT_SCALE = {
  auUnits: 60,
  moonOffset: 15,
- radius: { earth: RADIUS_KM.earth / MOON_RADIUS_KM, mars: RADIUS_KM.mars / MOON_RADIUS_KM, sun: 8 } as Record<BodyKey, number>,
+ radius: {
+  earth: RADIUS_KM.earth / MOON_RADIUS_KM, mars: RADIUS_KM.mars / MOON_RADIUS_KM,
+  mercury: RADIUS_KM.mercury / MOON_RADIUS_KM, venus: RADIUS_KM.venus / MOON_RADIUS_KM, sun: 8,
+ } as Record<BodyKey, number>,
 };
 const COMPACT = COMPACT_SCALE;
-const FALLBACK_COLOR: Record<BodyKey | 'moon', number> = { moon: 0x8a8a8a, earth: 0x2f6fb5, mars: 0xb5532f, sun: 0xffd27a };
+const FALLBACK_COLOR: Record<BodyKey | 'moon', number> = {
+ moon: 0x8a8a8a, earth: 0x2f6fb5, mars: 0xb5532f, mercury: 0x9a948c, venus: 0xd9b36c, sun: 0xffd27a,
+};
 const SPICE_TO_THREE = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
 const THREE_TO_SPICE = SPICE_TO_THREE.clone().invert();
 /** Browser storage key for the last camera position (Moon-fixed), so reloads keep the view. */
@@ -177,7 +182,9 @@ export class MoonScene {
  private moon = new THREE.Group();
  /** Heliocentric content: Sun at this group's origin; translated so the Moon sits at the world origin. */
  private helio = new THREE.Group();
- private bodies: Record<BodyKey, THREE.Group> = { sun: new THREE.Group(), earth: new THREE.Group(), mars: new THREE.Group() };
+ private bodies: Record<BodyKey, THREE.Group> = {
+  sun: new THREE.Group(), earth: new THREE.Group(), mars: new THREE.Group(), mercury: new THREE.Group(), venus: new THREE.Group(),
+ };
  private earthSpin = new THREE.Group();
  private labels: CSS2DObject[] = [];
  /** Labels on the lunar surface; hidden when on the far side or when their layer is off. */
@@ -260,10 +267,14 @@ export class MoonScene {
   this.fallbackSphere(this.moon, 1, FALLBACK_COLOR.moon);
   this.fallbackSphere(this.earthSpin, 1, FALLBACK_COLOR.earth);
   this.fallbackSphere(this.bodies.mars, 1, FALLBACK_COLOR.mars);
+  this.fallbackSphere(this.bodies.mercury, 1, FALLBACK_COLOR.mercury);
+  this.fallbackSphere(this.bodies.venus, 1, FALLBACK_COLOR.venus);
   this.fallbackSphere(this.bodies.sun, 1, FALLBACK_COLOR.sun, true);
   this.addLabel(this.bodies.earth, 'Earth', 'earth');
   this.addLabel(this.bodies.sun, 'Sun', 'sun');
   this.addLabel(this.bodies.mars, 'Mars', 'mars');
+  this.addLabel(this.bodies.mercury, 'Mercury', 'mercury');
+  this.addLabel(this.bodies.venus, 'Venus', 'venus');
   this.moonLabel = this.addLabel(this.moonFrame, 'Moon', 'moon');
   this.moonLabel.center.set(0.5, 3.2);
   this.buildGrid();
@@ -308,10 +319,11 @@ export class MoonScene {
  }
 
  async loadModels(manifest: ModelManifest, resolve: (path: string) => string) {
-  const status: ModelStatus = { moon: 'fallback', earth: 'fallback', sun: 'fallback', mars: 'fallback' };
+  const status: ModelStatus = { moon: 'fallback', earth: 'fallback', sun: 'fallback', mars: 'fallback', mercury: 'fallback', venus: 'fallback' };
   const loader = new GLTFLoader();
   const targets: [BodyKey | 'moon', THREE.Object3D][] = [
    ['moon', this.moon], ['earth', this.earthSpin], ['sun', this.bodies.sun], ['mars', this.bodies.mars],
+   ['mercury', this.bodies.mercury], ['venus', this.bodies.venus],
   ];
   for (const [key] of targets) if (manifest[key]) status[key] = 'loading';
   this.onModelStatus({ ...status });
@@ -460,7 +472,7 @@ export class MoonScene {
 
  /** Short window (the playback range): draws the Moon's path through the Sun frame. */
  setPathSamples(samples: SceneSample[]) { this.pathSamples = samples; this.buildPaths(); }
- /** Long, coarse window (~2 years): draws full Earth and Mars orbits around the Sun. */
+ /** Long, coarse window (~2 years): draws full Mercury, Venus, Earth and Mars orbits around the Sun. */
  setOrbitSamples(samples: SceneSample[]) { this.orbitSamples = samples; this.buildPaths(); }
 
  setSample(sample: SceneSample) {
@@ -751,6 +763,8 @@ export class MoonScene {
   if (this.orbitSamples.length > 1) {
    line(this.orbitSamples.map(s => this.helioDisplay(s.helio.earth)), 0x6fb7ff, 0.35);
    line(this.orbitSamples.map(s => this.helioDisplay(s.helio.mars)), 0xd27a5a, 0.35);
+   line(this.orbitSamples.map(s => this.helioDisplay(s.helio.mercury)), 0xb8b0a4, 0.35);
+   line(this.orbitSamples.map(s => this.helioDisplay(s.helio.venus)), 0xe0bf7a, 0.35);
   }
   if (this.pathSamples.length > 1) line(this.pathSamples.map(s => this.moonDisplay(s)), 0xe6e6e6, 0.6);
  }
@@ -763,6 +777,8 @@ export class MoonScene {
   this.bodies.sun.position.set(0, 0, 0);
   this.bodies.earth.position.copy(this.helioDisplay(s.helio.earth));
   this.bodies.mars.position.copy(this.helioDisplay(s.helio.mars));
+  this.bodies.mercury.position.copy(this.helioDisplay(s.helio.mercury));
+  this.bodies.venus.position.copy(this.helioDisplay(s.helio.venus));
   // The Moon's true attitude in the Sun frame (includes libration and its 27.3-day spin).
   this.moonFrame.quaternion.copy(spiceQuatToThree(s.moonRotationQuat));
   this.earthSpin.quaternion.copy(spiceQuatToThree(s.earthRotationQuat));

@@ -43,7 +43,7 @@ def test_health_lists_kernels():
 
 def test_models_manifest_points_to_served_files():
     status, manifest = _json("/api/v1/models")
-    assert status == 200 and set(manifest) == {"moon", "earth", "sun", "mars", "sky"}
+    assert status == 200 and set(manifest) == {"moon", "earth", "sun", "mars", "mercury", "venus", "sky"}
     for path in filter(None, manifest.values()):
         code, headers, _ = _get(path)
         assert code == 200, path

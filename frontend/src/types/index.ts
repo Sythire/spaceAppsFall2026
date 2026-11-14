@@ -11,3 +11,19 @@ export type MapLayer = 'illumination' | 'earth-visibility' | 'elevation';
 export interface MapLayerDefinition { id: MapLayer; name: string; available: boolean; }
 export interface Recommendation { location: LunarLocation; reason: string; mode: 'simulated' | 'verified'; }
 
+
+/** Moon-anchored scene geometry from the SPICE service. Vectors are MOON_ME, Moon-centered, km. */
+export type Vec3 = [number, number, number];
+/** SPICE quaternion order: w, x, y, z. Rotates IAU_EARTH vectors into MOON_ME. */
+export type SpiceQuat = [number, number, number, number];
+export interface HorizonAngles { elevationDeg: number; azimuthDeg: number; }
+export interface SceneSample { utc: string; sun: Vec3; earth: Vec3; mars: Vec3; earthRotationQuat: SpiceQuat; site?: { sun: HorizonAngles; earth: HorizonAngles }; }
+export interface SceneSeries { frame: 'MOON_ME'; units: 'km'; stepHours: number; source: string; horizonMethod: string | null; samples: SceneSample[]; }
+export interface BodyEvents extends HorizonAngles { distanceKm: number; aboveHorizon: boolean; nextSet: string | null; nextRise: string | null; }
+export interface SiteGeometry {
+ utc: string; location: { latitudeDeg: number; longitudeDeg: number; frame: 'MOON_ME' };
+ source: string; horizonMethod: string; searchWindowDays: number; azimuthConvention: string;
+ sun: BodyEvents; earth: BodyEvents;
+ power: { solarFluxWm2: number; horizontalPanelWm2: number; assumptions: string };
+}
+export interface ModelManifest { moon: string | null; earth: string | null; sun: string | null; mars: string | null; }

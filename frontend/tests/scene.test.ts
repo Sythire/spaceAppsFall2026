@@ -1,0 +1,8 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';
+import {formatCountdown,sampleAt} from '../src/utils/sceneTime.ts';
+import {latLonToThree,threeToLatLon} from '../src/pages/LunarMap/scene/MoonScene.ts';
+import type {SceneSample} from '../src/types/index.ts';
+test('lat/lon round-trips through the Moon-anchored scene axes',()=>{for(const [lat,lon] of [[0.674,23.473],[-89.5,32],[45,-120],[-10,179]]){const ll=threeToLatLon(latLonToThree(lat,lon,1.3));assert.ok(Math.abs(ll.latitudeDeg-lat)<1e-9);assert.ok(Math.abs(ll.longitudeDeg-lon)<1e-9);}});
+test('MOON_ME north maps to scene +Y and 0°E to +X',()=>{const n=latLonToThree(90,0);assert.ok(Math.abs(n.y-1)<1e-12);const e=latLonToThree(0,0);assert.ok(Math.abs(e.x-1)<1e-12);const east=latLonToThree(0,90);assert.ok(Math.abs(east.z+1)<1e-12);});
+test('countdown formats future events and rejects past or missing ones',()=>{assert.equal(formatCountdown('2026-11-14T12:00:00Z','2026-11-17T15:30:00Z'),'3 d 3 h');assert.equal(formatCountdown('2026-11-14T12:00:00Z','2026-11-14T14:05:00Z'),'2 h 5 min');assert.equal(formatCountdown('2026-11-14T12:00:00Z',null),null);assert.equal(formatCountdown('2026-11-14T12:00:00Z','2026-11-14T11:00:00Z'),null);});
+test('sampleAt interpolates vectors and time between hourly samples',()=>{const mk=(utc:string,x:number):SceneSample=>({utc,sun:[x,0,0],earth:[0,x,0],mars:[0,0,x],earthRotationQuat:[1,0,0,0]});const s=sampleAt([mk('2026-11-14T00:00:00.000Z',0),mk('2026-11-14T01:00:00.000Z',10)],0.5);assert.deepEqual(s.sun,[5,0,0]);assert.equal(s.utc,'2026-11-14T00:30:00.000Z');assert.deepEqual(s.earthRotationQuat,[1,0,0,0]);});

@@ -51,3 +51,16 @@ Before verified mode, add explicit timeline interval/cadence, per-product proven
 
 Service methods exist for every endpoint; analysis/comparison, site catalog and layers are currently wired to UI. Dedicated timeline and recommendations are ready for integration, not a claim of completed backend functionality.
 
+
+## Implemented ephemeris endpoints (backend/api)
+These are live, not proposed. Units are km and degrees; vectors are MOON_ME, Moon-centered; times are ISO 8601 UTC.
+
+| Method/path | Query | Response |
+| --- | --- | --- |
+| GET /health | none | kernel list, frame, coverage |
+| GET /models | none | ModelManifest: path of each GLB or null |
+| GET /scene | utc? (default now) | Body vectors, distances, sub-points, IAU_EARTH→MOON_ME quaternion |
+| GET /scene/series | start, hours (≤2880), stepHours, lat?, lon? | SceneSeries: samples with body vectors, Earth quaternion, optional site angles |
+| GET /site | lat, lon, utc? | SiteGeometry: Sun/Earth elevation/azimuth, next rise/set (35-day search), ideal horizontal-panel flux |
+
+Out-of-coverage times (outside 1849–2150) return HTTP 422 with the SPICE error. The 3D view uses these directly with no mock fallback. Types live in frontend/src/types/index.ts.

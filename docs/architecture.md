@@ -2,7 +2,7 @@
 ## Decision
 React 19, TypeScript strict mode, Vite 7, Tailwind CSS 4 via its Vite plugin, React Router 7 declarative routing, Lucide React icons and Recharts 3. Lockfile pins resolved dependencies. No auth, database or scientific engine is introduced.
 
-This repository is the project root. npm workspaces allow root commands to target frontend. Cesium is deliberately not installed yet: the map teammate owns renderer setup and its substantial assets.
+This repository is the project root. npm workspaces allow root commands to target frontend. The 3D explorer uses three.js (lazy-loaded with the Explorer route) instead of Cesium.
 
 ## Boundaries
 - App.tsx composes routes and AppProvider.
@@ -15,7 +15,7 @@ This repository is the project root. npm workspaces allow root commands to targe
 - services owns backend calls and simulated-provider switching.
 - constants/mockData.ts owns all simulated records and values.
 - types/index.ts defines UI-independent contracts.
-- pages/LunarMap/MapViewport.tsx is the isolated Cesium replacement boundary.
+- pages/LunarMap/MapViewport.tsx owns the 3D view UI; pages/LunarMap/scene/MoonScene.ts owns the three.js scene (Moon-fixed MOON_ME world axes, 1 unit = 1 lunar radius).
 
 No API calls belong in presentation components. Page composition calls hooks/services. Scientific calculations will be supplied by backend/astronomy teammates, never recreated inside charts.
 

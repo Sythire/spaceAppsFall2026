@@ -1,5 +1,207 @@
-import type {LunarLocation,MapLayer} from '../../types';
-export interface MapViewportProps {location:LunarLocation|null;layers:MapLayer[];onSelect:(location:LunarLocation)=>void;}
-/** Replace this boundary with Cesium. Configure a lunar ellipsoid, never WGS84 Earth defaults. */
-export function MapViewport({location,layers}:MapViewportProps){return <div className="map-viewport" role="img" aria-label="Lunar map integration placeholder; no geographic imagery loaded"><div className="map-grid"/><div className="polar-rings"><div/><div/><div/></div><div className="map-center"><span className="crosshair">+</span><h3>Lunar south-pole viewport</h3><p>MAP PLACEHOLDER · CESIUM INTEGRATION PENDING</p><small>No terrain, imagery or scientific overlays loaded.</small></div><div className="map-coordinates">{location?location.latitudeDeg.toFixed(4)+'° N / '+location.longitudeDeg.toFixed(4)+'° E':'Select coordinates using the form'}<span>Requested layers: {layers.join(', ')||'none'} · not rendered</span></div><div className="map-legend">+ Selected location placeholder<br/>Reference grid · decorative, not georeferenced</div></div>;}
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Pause, Play, RotateCcw, Crosshair, CalendarCheck } from 'lucide-react';
+import type { LunarLocation, MapLayer, SceneSeries, SiteGeometry, Vec3 } from '../../types';
+import { modelUrl, sceneService } from '../../services/sceneService';
+import { MoonScene, type ModelStatus, type ScaleMode } from './scene/MoonScene';
+import { formatCountdown, formatUtc, sampleAt } from '../../utils/sceneTime';
 
+export interface MapViewportProps {
+ location: LunarLocation | null;
+ layers: MapLayer[];
+ onSelect: (location: LunarLocation) => void;
+ /** Scenario time (ISO UTC). The playback window starts here. */
+ utc: string;
+ onUtcChange: (utc: string) => void;
+ markers: LunarLocation[];
+}
+
+const WINDOW_HOURS = 720; // 30 days ≈ one synodic month
+const STEP_HOURS = 1;
+const SPEEDS = [{ label: '1 h/s', value: 1 }, { label: '6 h/s', value: 6 }, { label: '1 day/s', value: 24 }, { label: '3 days/s', value: 72 }];
+
+const subPoint = (v: Vec3) => {
+ const r = Math.hypot(...v);
+ return { lat: (Math.asin(v[2] / r) * 180) / Math.PI, lon: (Math.atan2(v[1], v[0]) * 180) / Math.PI };
+};
+const fmtLatLon = (lat: number, lon: number) => `${Math.abs(lat).toFixed(2)}° ${lat >= 0 ? 'N' : 'S'}, ${Math.abs(lon).toFixed(2)}° ${lon >= 0 ? 'E' : 'W'}`;
+const deg = (v: number) => v.toFixed(2) + '°';
+
+export function MapViewport({ location, onSelect, utc, onUtcChange, markers }: MapViewportProps) {
+ const containerRef = useRef<HTMLDivElement>(null);
+ const engineRef = useRef<MoonScene | null>(null);
+ const markersRef = useRef(markers);
+ markersRef.current = markers;
+ const onSelectRef = useRef(onSelect);
+ onSelectRef.current = onSelect;
+ const [series, setSeries] = useState<SceneSeries | null>(null);
+ const [seriesError, setSeriesError] = useState('');
+ const [attempt, setAttempt] = useState(0);
+ const [playhead, setPlayhead] = useState(0);
+ const [playing, setPlaying] = useState(false);
+ const [speed, setSpeed] = useState(6);
+ const [scale, setScale] = useState<ScaleMode>('compact');
+ const [grid, setGrid] = useState(false);
+ const [paths, setPaths] = useState(true);
+ const [labels, setLabels] = useState(true);
+ const [models, setModels] = useState<ModelStatus | null>(null);
+ const [siteGeo, setSiteGeo] = useState<SiteGeometry | null>(null);
+ const [siteError, setSiteError] = useState('');
+
+ // Engine lifecycle.
+ useEffect(() => {
+  const el = containerRef.current;
+  if (!el) return;
+  const engine = new MoonScene(el,
+   (lat, lon) => onSelectRef.current({ id: 'custom', name: 'Custom location', latitudeDeg: lat, longitudeDeg: lon, frame: 'MOON_ME' }),
+   id => { const m = markersRef.current.find(s => s.id === id); if (m) onSelectRef.current(m); },
+   setModels);
+  engineRef.current = engine;
+  sceneService.models().then(manifest => engine.loadModels(manifest, modelUrl)).catch(() => setModels({ moon: 'fallback', earth: 'fallback', sun: 'fallback', mars: 'fallback' }));
+  return () => { engine.dispose(); engineRef.current = null; };
+ }, []);
+
+ // Ephemeris window for the scenario time and site.
+ const lat = location?.latitudeDeg, lon = location?.longitudeDeg;
+ useEffect(() => {
+  let current = true;
+  setSeriesError('');
+  sceneService.series(utc, WINDOW_HOURS, STEP_HOURS, lat, lon)
+   .then(s => { if (current) { setSeries(s); setPlayhead(0); engineRef.current?.setPathSamples(s.samples); } })
+   .catch((e: unknown) => { if (current) setSeriesError(e instanceof Error ? e.message : 'Unable to load ephemeris'); });
+  return () => { current = false; };
+ }, [utc, lat, lon, attempt]);
+
+ const sample = useMemo(() => series ? sampleAt(series.samples, playhead / series.stepHours) : null, [series, playhead]);
+ const viewingUtc = sample?.utc ?? utc;
+
+ useEffect(() => { if (sample) engineRef.current?.setSample(sample); }, [sample]);
+ useEffect(() => { engineRef.current?.setOptions({ scale, grid, paths, labels }); }, [scale, grid, paths, labels]);
+ useEffect(() => { engineRef.current?.setMarkers(markers, location?.id ?? null); }, [markers, location?.id]);
+ useEffect(() => {
+  engineRef.current?.setSite(lat ?? null, lon ?? null);
+  if (lat !== undefined && lon !== undefined) engineRef.current?.flyTo(lat, lon);
+ }, [lat, lon]);
+
+ // Playback clock.
+ useEffect(() => {
+  if (!playing) return;
+  let last = performance.now(), frame = 0;
+  const tick = (now: number) => {
+   const dt = (now - last) / 1000; last = now;
+   setPlayhead(p => { const next = p + dt * speed; if (next >= WINDOW_HOURS) { setPlaying(false); return WINDOW_HOURS; } return next; });
+   frame = requestAnimationFrame(tick);
+  };
+  frame = requestAnimationFrame(tick);
+  return () => cancelAnimationFrame(frame);
+ }, [playing, speed]);
+
+ // Precise site geometry and rise/set events, fetched when the view settles.
+ useEffect(() => {
+  if (lat === undefined || lon === undefined) { setSiteGeo(null); return; }
+  if (playing) return;
+  let current = true;
+  const id = setTimeout(() => {
+   sceneService.site(lat, lon, viewingUtc)
+    .then(g => { if (current) { setSiteGeo(g); setSiteError(''); } })
+    .catch((e: unknown) => { if (current) setSiteError(e instanceof Error ? e.message : 'Unable to load site geometry'); });
+  }, 250);
+  return () => { current = false; clearTimeout(id); };
+ }, [lat, lon, viewingUtc, playing]);
+
+ const togglePlay = useCallback(() => {
+  if (!playing && playhead >= WINDOW_HOURS) setPlayhead(0);
+  setPlaying(p => !p);
+ }, [playing, playhead]);
+
+ const sunAngles = playing || !siteGeo ? sample?.site?.sun : siteGeo.sun;
+ const earthAngles = playing || !siteGeo ? sample?.site?.earth : siteGeo.earth;
+ const subSolar = sample ? subPoint(sample.sun) : null;
+ const subEarth = sample ? subPoint(sample.earth) : null;
+
+ const event = (body: 'sun' | 'earth', name: [string, string]) => {
+  if (!siteGeo || !sunAngles || !earthAngles) return '—';
+  const angles = body === 'sun' ? sunAngles : earthAngles;
+  const g = siteGeo[body];
+  const up = angles.elevationDeg > 0;
+  const when = up ? g.nextSet : g.nextRise;
+  const countdown = formatCountdown(viewingUtc, when);
+  if (!when) return `${up ? 'Above' : 'Below'} horizon · no ${up ? name[0] : name[1]} within ${siteGeo.searchWindowDays} days`;
+  if (!countdown) return `${up ? 'Above' : 'Below'} horizon · pause to refresh`;
+  return `${up ? 'Above' : 'Below'} horizon · ${up ? name[0] : name[1]} in ${countdown} (${formatUtc(when)})`;
+ };
+
+ const modelNote = models && Object.entries(models).filter(([, s]) => s !== 'model')
+  .map(([k, s]) => `${k}: ${s === 'loading' ? 'loading model…' : 'reference sphere (GLB not found)'}`).join(' · ');
+
+ return <div className="scene-wrap">
+  <div className="map-viewport scene-viewport" ref={containerRef} role="application"
+   aria-label="3D Moon-anchored view. Drag to orbit, scroll to zoom, click the Moon to select a location. Coordinates can also be entered in the form.">
+   <div className="scene-toggles">
+    <label>Scale<select value={scale} onChange={e => setScale(e.target.value as ScaleMode)}>
+     <option value="compact">Compact distances</option><option value="true">True scale</option></select></label>
+    <label className="checkbox"><input type="checkbox" checked={grid} onChange={e => setGrid(e.target.checked)} />Lat/lon grid</label>
+    <label className="checkbox"><input type="checkbox" checked={paths} onChange={e => setPaths(e.target.checked)} />30-day paths</label>
+    <label className="checkbox"><input type="checkbox" checked={labels} onChange={e => setLabels(e.target.checked)} />Labels</label>
+    <div className="button-row">
+     <button type="button" onClick={() => engineRef.current?.resetView()}><RotateCcw size={12} aria-hidden /> Reset view</button>
+     {location && <button type="button" onClick={() => engineRef.current?.flyTo(location.latitudeDeg, location.longitudeDeg)}><Crosshair size={12} aria-hidden /> Site</button>}
+    </div>
+   </div>
+   <div className="scene-legend" aria-hidden>
+    <span><i className="sun" />Sun direction</span><span><i className="earth" />Earth direction</span><span><i className="horizon" />Local horizon</span>
+   </div>
+   {seriesError && <div className="scene-error" role="alert">
+    <strong>Ephemeris service unavailable</strong><p>{seriesError}</p>
+    <p className="muted">Start it from <code>backend/</code>: <code>python -m uvicorn api.main:app --port 8000</code></p>
+    <button type="button" onClick={() => setAttempt(n => n + 1)}>Retry</button>
+   </div>}
+   {!series && !seriesError && <div className="scene-loading">Loading SPICE geometry…</div>}
+  </div>
+
+  <section className="scene-timeline panel" aria-label="Time playback">
+   <button type="button" onClick={togglePlay} disabled={!series} aria-label={playing ? 'Pause playback' : 'Play playback'}>
+    {playing ? <Pause size={14} aria-hidden /> : <Play size={14} aria-hidden />}</button>
+   <label className="sr-only" htmlFor="scene-speed">Playback speed</label>
+   <select id="scene-speed" value={speed} onChange={e => setSpeed(Number(e.target.value))}>
+    {SPEEDS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}</select>
+   <label className="scene-slider">
+    <span>Viewing <strong>{formatUtc(viewingUtc)}</strong> · +{(playhead / 24).toFixed(1)} of 30 days from scenario time</span>
+    <input type="range" min={0} max={WINDOW_HOURS} step={0.25} value={playhead} disabled={!series}
+     aria-label="Hours after scenario time" onChange={e => { setPlaying(false); setPlayhead(Number(e.target.value)); }} />
+   </label>
+   <button type="button" disabled={playhead === 0} onClick={() => { setPlaying(false); setPlayhead(0); }}>Back to scenario time</button>
+   <button type="button" disabled={playhead === 0} onClick={() => { setPlaying(false); onUtcChange(new Date(viewingUtc).toISOString()); }}>
+    <CalendarCheck size={12} aria-hidden /> Set as scenario time</button>
+  </section>
+
+  <section className="panel scene-readout" aria-live="polite">
+   <div className="scene-readout-head">
+    <h2>{location ? location.name : 'No site selected'}</h2>
+    <span className="muted">{location ? fmtLatLon(location.latitudeDeg, location.longitudeDeg) + ' · MOON_ME' : 'Click the Moon, a site ping, or enter coordinates.'}</span>
+   </div>
+   <div className="readout-grid">
+    <article className="metric metric-sun"><span>Solar elevation</span>
+     <strong>{sunAngles ? deg(sunAngles.elevationDeg) : '—'}</strong>
+     <small>{sunAngles ? 'Azimuth ' + deg(sunAngles.azimuthDeg) + ' · ' : ''}{location ? event('sun', ['sunset', 'sunrise']) : 'Select a site'}</small></article>
+    <article className="metric metric-earth"><span>Earth elevation</span>
+     <strong>{earthAngles ? deg(earthAngles.elevationDeg) : '—'}</strong>
+     <small>{earthAngles ? 'Azimuth ' + deg(earthAngles.azimuthDeg) + ' · ' : ''}{location ? event('earth', ['Earthset', 'Earthrise']) : 'Select a site'}</small></article>
+    <article className="metric"><span>Ideal horizontal panel</span>
+     <strong>{siteGeo && !playing ? siteGeo.power.horizontalPanelWm2.toFixed(0) + ' W/m²' : '—'}</strong>
+     <small>{siteGeo ? `Solar flux ${siteGeo.power.solarFluxWm2.toFixed(0)} W/m² · ${siteGeo.power.assumptions}` : 'Needs a selected site'}</small></article>
+    <article className="metric"><span>Sub-solar · sub-Earth point</span>
+     <strong className="small-strong">{subSolar ? fmtLatLon(subSolar.lat, subSolar.lon) : '—'}</strong>
+     <small>Sub-Earth {subEarth ? fmtLatLon(subEarth.lat, subEarth.lon) : '—'} · offset from 0°,0° is libration</small></article>
+    <article className="metric metric-unavailable"><span>Slope · temperature · PSR</span>
+     <strong className="small-strong">Not available</strong>
+     <small>No LOLA terrain, Diviner thermal or PSR product is loaded. Unknown is not "false".</small></article>
+   </div>
+   {siteError && <p role="alert">{siteError}</p>}
+   <p className="scene-source">
+    {series ? series.source : 'Source pending'} · Horizon: {siteGeo?.horizonMethod ?? 'mean lunar sphere, no terrain'} · Azimuth clockwise from north
+    {scale === 'compact' ? ' · Compact scale: true directions, distances and sizes not to scale' : ' · True scale: real distances and radii'}
+    {modelNote ? ' · ' + modelNote : ''}
+   </p>
+  </section>
+ </div>;
+}

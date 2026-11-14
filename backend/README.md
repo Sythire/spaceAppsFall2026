@@ -1,3 +1,27 @@
-# Backend handoff
-No backend is implemented. Proposed Python/FastAPI + SpiceyPy service owns ephemerides, kernels, time/frame conversions, terrain horizons and provenance. Implement endpoints in docs/integration_contracts.md. Use CORS for the frontend development origin, cache bounded external queries and return missing coverage explicitly. Never turn fixture values into verified results.
+# Backend: Moon-anchored ephemeris service
 
+FastAPI + SpiceyPy service that computes Sun, Earth and Mars geometry in the Moon-fixed **MOON_ME** frame (Moon center origin, km) and site-relative Sun/Earth elevation, azimuth and rise/set times. It also serves the GLB models in `../modelResources` at `/models`.
+
+## Run
+```bash
+pip install -r requirements.txt
+python -m uvicorn api.main:app --host 127.0.0.1 --port 8000
+```
+Run from this `backend/` folder. The frontend reads `VITE_API_BASE_URL` (default `http://127.0.0.1:8000/api/v1`) from `frontend/.env.local`.
+
+## Kernels (`ephermis_data_retreiver/required_kernels/`)
+| File | Purpose |
+| --- | --- |
+| naif0012.tls | Leap seconds |
+| de440s.bsp | Planetary ephemeris, 1849–2150 (Mars as MARS BARYCENTER) |
+| pck00011.tpc | Body radii, IAU_EARTH orientation |
+| moon_pa_de440_200625.bpc | High-accuracy lunar orientation (libration), 1550–2650 |
+| moon_de440_250416.tf | MOON_ME / MOON_PA frame definitions |
+
+The Cassini-era kernels in that folder are not used by the service.
+
+## Method and validation
+- Aberration correction LT+S, observer Moon center; site vectors subtract the site position on a 1737.4 km mean sphere.
+- Horizon: mean sphere, disk center, no terrain, no refraction (the Moon has no atmosphere). Terrain horizons need LOLA data.
+- Rise/set: 1-hour sampling over 35 days, bisection to under a minute.
+- Checked against JPL Horizons (airless, MEAN_ME observer): 0.674° N 23.473° E at 2026-11-20 23:05 UTC and 89.5° S 32° E at 2026-11-14 12:00 UTC. Sun and Earth azimuth/elevation agree to better than 0.0001°.

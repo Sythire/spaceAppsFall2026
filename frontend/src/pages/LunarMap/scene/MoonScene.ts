@@ -41,7 +41,7 @@ export function threeToLatLon(p: THREE.Vector3): { latitudeDeg: number; longitud
  return { latitudeDeg: THREE.MathUtils.radToDeg(Math.asin(Z / r)), longitudeDeg: THREE.MathUtils.radToDeg(Math.atan2(Y, X)) };
 }
 /** SPICE frame rotation quaternion (w, x, y, z) expressed in three.js axes. */
-function spiceQuatToThree(q: SpiceQuat): THREE.Quaternion {
+export function spiceQuatToThree(q: SpiceQuat): THREE.Quaternion {
  const [w, x, y, z] = q;
  return SPICE_TO_THREE.clone().multiply(new THREE.Quaternion(x, y, z, w)).multiply(THREE_TO_SPICE);
 }
@@ -51,7 +51,7 @@ export const ELEVATION_STOPS: [number, string][] = [
  [-9000, '#2c3f97'], [-5000, '#2f86c4'], [-2000, '#4fb7a5'], [0, '#8fcf6a'], [2500, '#f0d55c'], [5500, '#e8913b'], [8000, '#c8553d'], [10700, '#ffffff'],
 ];
 const ELEV_COLORS = ELEVATION_STOPS.map(([h, c]) => [h, new THREE.Color(c)] as const);
-function elevationColor(h: number, out: THREE.Color): THREE.Color {
+export function elevationColor(h: number, out: THREE.Color): THREE.Color {
  if (h <= ELEV_COLORS[0][0]) return out.copy(ELEV_COLORS[0][1]);
  for (let i = 1; i < ELEV_COLORS.length; i++) {
   const [h1, c1] = ELEV_COLORS[i];

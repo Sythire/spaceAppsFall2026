@@ -25,3 +25,9 @@ The Cassini-era kernels in that folder are not used by the service.
 - Horizon: mean sphere, disk center, no terrain, no refraction (the Moon has no atmosphere). Terrain horizons need LOLA data.
 - Rise/set: 1-hour sampling over 35 days, bisection to under a minute.
 - Checked against JPL Horizons (airless, MEAN_ME observer): 0.674° N 23.473° E at 2026-11-20 23:05 UTC and 89.5° S 32° E at 2026-11-14 12:00 UTC. Sun and Earth azimuth/elevation agree to better than 0.0001°.
+
+## Tests
+```bash
+python -m pytest tests -q
+```
+Run from this `backend/` folder. `test_ephemeris.py` and `test_terrain.py` run offline (the terrain tests skip if `ldem_16_uint.tif` is missing). `test_api.py` calls a running server at `http://127.0.0.1:8000` (override with `LUNARSITE_API`) and skips if none is up. Frontend tests: `npm test` in the repo root.

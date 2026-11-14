@@ -19,7 +19,7 @@ You can also run these commands inside frontend.
 ## What works
 Five routed pages, responsive dark dashboard, navigation collapse, global UTC input, candidate/custom coordinate selection, stackable layer selection state, simulated analysis charts, and two/three-site comparisons. Service methods support mock or backend modes. Loading, retry, error and empty states are provided.
 
-**All candidates, analysis metrics and charts are simulated.** No NASA dataset or Cesium renderer is connected. No fake scientific calculation or suitability score is implemented. Mock metrics intentionally do not change with time.
+With `VITE_USE_MOCKS=false` (the example configuration), Analysis and Comparison use the live NASA/JPL SPICE backend. Select a site, choose UTC and a 1/7/30/90-day interval to see angle charts, daylight/darkness totals and Earth visibility windows. The 3D explorer also uses live SPICE. Analysis uses a smooth lunar horizon; temperature, PSR and suitability products remain unavailable. The explorer also provides LOLA elevation and regional slope. `VITE_USE_MOCKS=true` enables fixed demo fixtures for Analysis/Comparison.
 
 ## Structure
 - frontend/: React, TypeScript, Vite, Tailwind CSS, React Router, Lucide and Recharts.

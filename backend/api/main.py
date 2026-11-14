@@ -7,12 +7,14 @@ from __future__ import annotations
 
 import os
 from datetime import datetime, timezone
+from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from . import ephemeris, terrain
+from . import analysis, catalog, ephemeris, terrain
+from .schemas import AnalysisRequest, ComparisonRequest
 
 MODEL_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "modelResources"))
 # GLB exports of the provided models. The originals (.usdz / 8k .glb) are never modified.
@@ -34,11 +36,14 @@ if os.path.isdir(MODEL_DIR):
     app.mount("/models", StaticFiles(directory=MODEL_DIR), name="models")
 
 
-def _utc(value: str | None) -> datetime:
+def _utc(value: Optional[str]) -> datetime:
     if not value:
         return datetime.now(timezone.utc)
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if parsed.tzinfo is None or parsed.utcoffset() is None:
+            raise ValueError("Timezone required")
+        return parsed.astimezone(timezone.utc)
     except ValueError as exc:
         raise HTTPException(422, f"Invalid ISO 8601 UTC timestamp: {value}") from exc
 
@@ -48,6 +53,8 @@ def _call(fn, *args):
         return fn(*args)
     except ephemeris.EphemerisError as exc:
         raise HTTPException(422, str(exc)) from exc
+    except ephemeris.KernelError as exc:
+        raise HTTPException(503, str(exc)) from exc
 
 
 @app.on_event("startup")
@@ -57,7 +64,7 @@ def _startup() -> None:
 
 @app.get("/api/v1/health")
 def health():
-    return {"status": "ok", **ephemeris.coverage()}
+    return {"status": "ok", **_call(ephemeris.coverage)}
 
 
 @app.get("/api/v1/models")
@@ -68,24 +75,57 @@ def models():
 
 
 @app.get("/api/v1/scene")
-def scene(utc: str | None = None):
+def scene(utc: Optional[str] = None):
     return _call(ephemeris.scene, _utc(utc))
 
 
 @app.get("/api/v1/scene/series")
-def scene_series(start: str | None = None, hours: float = Query(720, gt=0, le=24 * 800),
+def scene_series(start: Optional[str] = None, hours: float = Query(720, gt=0, le=24 * 800),
                  stepHours: float = Query(2, ge=0.25, le=240),
-                 lat: float | None = Query(None, ge=-90, le=90), lon: float | None = Query(None, ge=-180, le=180)):
+                 lat: Optional[float] = Query(None, ge=-90, le=90), lon: Optional[float] = Query(None, ge=-180, le=180)):
     if hours / stepHours > 4000:
         raise HTTPException(422, "Too many samples; increase stepHours or reduce hours")
+    if (lat is None) != (lon is None):
+        raise HTTPException(422, "Supply both lat and lon for site-relative angles")
     return _call(ephemeris.series, _utc(start), hours, stepHours, lat, lon)
 
 
 @app.get("/api/v1/site")
-def site(lat: float = Query(..., ge=-90, le=90), lon: float = Query(..., ge=-180, le=180), utc: str | None = None):
+def site(lat: float = Query(..., ge=-90, le=90), lon: float = Query(..., ge=-180, le=180), utc: Optional[str] = None):
     result = _call(ephemeris.site, lat, lon, _utc(utc))
-    result["terrain"] = terrain.site(lat, lon)  # None when the DEM file is missing
+    result["terrain"] = terrain.site(lat, lon)
     return result
+
+
+@app.get("/api/v1/sites")
+def sites():
+    return catalog.SITES
+
+
+@app.get("/api/v1/map/layers")
+def layers():
+    return [{**layer, "available": terrain.available() if layer["id"] == "elevation"
+             else layer["id"] == "illumination"} for layer in catalog.LAYERS]
+
+
+@app.get("/api/v1/data/sources")
+def data_sources():
+    return _call(ephemeris.coverage)["provenance"]
+
+
+@app.post("/api/v1/analysis")
+def analyze(request: AnalysisRequest):
+    return _call(analysis.analyze, request)
+
+
+@app.post("/api/v1/timeline")
+def timeline(request: AnalysisRequest):
+    return _call(analysis.analyze, request)["illumination"]["timeline"]
+
+
+@app.post("/api/v1/comparisons")
+def compare(request: ComparisonRequest):
+    return {"results": [_call(analysis.analyze, scenario) for scenario in request.requests]}
 
 
 @app.get("/api/v1/terrain/info")

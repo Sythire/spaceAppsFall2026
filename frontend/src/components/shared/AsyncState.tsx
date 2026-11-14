@@ -1,3 +1,6 @@
 export function AsyncState({loading,error,empty,retry}:{loading:boolean;error:string;empty?:boolean;retry:()=>void}){return loading?<p role="status">Loading workspace data…</p>:error?<div role="alert"><p>{error}</p><button onClick={retry}>Retry</button></div>:empty?<p>No data available for this selection.</p>:null;}
-export function MockNotice(){return <p className="mock-notice">SIMULATED VALUES · Candidate sites and the Site Analysis / Comparison metrics on this page are UI fixtures, not NASA measurements. The Lunar Explorer 3D view and its site readout use live NASA JPL SPICE geometry.</p>;}
+import {isMockMode} from '../../services/apiClient';
+export function MockNotice(){return <p className="mock-notice">{isMockMode
+ ? 'DEMO MODE · Analysis and Comparison use fixed UI fixtures. The 3D explorer uses live SPICE geometry.'
+ : 'NASA SPICE MODEL · Results recompute for your site and date using a smooth lunar horizon. Terrain shadows, eclipses and radio link budgets are not included.'}</p>;}
 

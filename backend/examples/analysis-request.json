@@ -1,0 +1,12 @@
+{
+  "location": {
+    "id": "polar-reference",
+    "name": "South-pole test location (hypothetical)",
+    "latitudeDeg": -89.5,
+    "longitudeDeg": 32,
+    "frame": "MOON_ME"
+  },
+  "utc": "2026-11-14T12:00:00Z",
+  "durationHours": 720,
+  "stepHours": 1
+}

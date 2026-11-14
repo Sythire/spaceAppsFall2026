@@ -17,7 +17,7 @@ function attachMoonModel(node:HTMLElement|null){
   };
   for(const [name,value] of Object.entries(attributes))node.setAttribute(name,value);
 }
-function MoonGlobe(){return createElement('model-viewer' as any,{ref:attachMoonModel,className:'nasa-moon-model'})}
+function MoonGlobe(){return createElement('model-viewer',{ref:attachMoonModel,className:'nasa-moon-model'})}
 
 export default function Dashboard(){return <div className="home-page">
   <MockNotice/>

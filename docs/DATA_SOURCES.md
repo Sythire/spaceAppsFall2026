@@ -29,3 +29,10 @@ Moon Trek is useful for finding context and datasets; do not assume it provides 
 For each actual product record: mission/instrument, product ID, release/version, source URL, attribution/license, download date, spatial resolution, coordinate frame/projection, units, temporal coverage, uncertainty and missing-value encoding. Preserve original metadata. Tile or downsample big rasters outside the browser. Validate CRS alignment before calculating slope or combining layers.
 
 Diviner observations or climatologies are not arbitrary-time surface temperature predictions. PSR requires long-term terrain illumination analysis or an authoritative PSR product; a location dark at one selected time is not necessarily permanently shadowed. No temperature or PSR values may be inferred from the illustrative scene.
+
+## Added 2026-11-14
+| Resource | Use | File |
+| --- | --- | --- |
+| [NASA GSFC PGDA Lunar Polar Illumination](https://pgda.gsfc.nasa.gov/products/69) | Official LOLA permanent shadow map, 75°S–pole, 120 m. Cite Mazarico et al. (2011) Icarus 211, 1066-1081 | `modelResources/LPSR_75S_120M_201608.TIF` |
+| [LRO Diviner derived products, PDS Geosciences](https://pds-geosciences.wustl.edu/lro/urn-nasa-pds-lro_diviner_derived1/data_derived_gdr_l3/) | Bolometric temperature (tbol_avg), 4 px/deg, 2010 day/night cycle averages; composited to day max / night min | `modelResources/diviner/dgdr_tbol_avg_cyl_2010*_004_img.img` (+ .xml labels) |
+| Wikipedia mission and feature articles (citing LROC) | CLPS landed coordinates (IM-1, Blue Ghost 1, IM-2) and target-feature centres for planned missions (Reiner Gamma, Nobile, Mons Gruithuisen Gamma) | `backend/api/catalog.py` (URL per site) |

@@ -1,0 +1,319 @@
+# Task: Set Up LunarSite Explorer — Frontend Architecture & Initial Repository
+
+You are acting as the **Frontend Lead and Repository Architect** for a six-person team building LunarSite Explorer, a web application for NASA's Lunar Landing Site Navigator challenge.
+
+Your responsibility is to establish a clean, scalable frontend architecture that allows six developers to work independently and integrate their work without conflicts.
+
+## 1. Project Overview
+
+LunarSite Explorer is a scientific decision-support platform that helps users evaluate potential lunar landing locations, particularly around the Moon's south pole.
+
+The application will allow users to:
+- Explore the lunar south pole through an interactive map.
+- Visualize sunlight availability and Earth visibility.
+- Select locations and dates for analysis.
+- Examine scientific measurements and visualizations.
+- Compare multiple potential landing sites.
+- Evaluate landing-site suitability.
+
+The initial task is to establish the frontend infrastructure, application layout, navigation, shared state, and integration standards.
+
+Do not attempt to implement all scientific functionality yet.
+
+## 2. Technology Stack
+
+Use the following technologies:
+
+- React
+- TypeScript
+- Vite
+- Tailwind CSS
+- React Router for navigation
+- Lucide React for icons
+- Recharts for charts
+- CesiumJS integration-ready architecture for the lunar map
+
+Use stable, compatible package versions.
+
+Avoid unnecessary dependencies.
+
+## 3. Initial Repository Structure
+
+Create the following structure:
+
+```text
+lunar-site-explorer/
+│
+├── frontend/
+│   ├── public/
+│   ├── src/
+│   │   ├── assets/
+│   │   ├── components/
+│   │   │   ├── layout/
+│   │   │   ├── navigation/
+│   │   │   ├── ui/
+│   │   │   └── shared/
+│   │   │
+│   │   ├── pages/
+│   │   │   ├── Dashboard/
+│   │   │   ├── LunarMap/
+│   │   │   ├── Analysis/
+│   │   │   ├── Comparison/
+│   │   │   └── About/
+│   │   │
+│   │   ├── hooks/
+│   │   ├── context/
+│   │   ├── services/
+│   │   ├── types/
+│   │   ├── constants/
+│   │   ├── utils/
+│   │   ├── App.tsx
+│   │   └── main.tsx
+│   │
+│   ├── package.json
+│   └── vite.config.ts
+│
+├── backend/
+│   └── README.md
+│
+├── data/
+│   └── README.md
+│
+├── docs/
+│   ├── architecture.md
+│   ├── frontend_guidelines.md
+│   └── integration_contracts.md
+│
+├── .gitignore
+├── README.md
+└── CONTRIBUTING.md
+```
+
+You may adjust the structure if there is a strong architectural reason, but document any changes.
+
+## 4. Website Layout and Design
+
+Build a professional scientific dashboard.
+
+The design should feel like a combination of:
+- NASA mission-control interfaces.
+- Modern scientific visualization platforms.
+- Professional geospatial analysis software.
+
+Design requirements:
+
+- Dark theme as the default.
+- Deep navy/black background.
+- Subtle borders and restrained accent colors.
+- Clear typography and spacing.
+- Responsive layout.
+- Avoid excessive gradients, glowing effects, and unnecessary animations.
+- Prioritize readability and scientific information.
+
+### Main application layout
+
+Create:
+
+**A. Sidebar navigation**
+
+Include:
+- Overview
+- Lunar Explorer
+- Site Analysis
+- Site Comparison
+- About
+
+The sidebar should have a project logo/name, navigation icons, active-page indicators, and a collapse option if practical.
+
+**B. Top navigation**
+
+Include:
+- Current page title.
+- Global date selector placeholder.
+- User-facing status indicator for NASA data availability.
+- Project branding.
+
+**C. Main content area**
+
+Each page should render inside the shared application layout.
+
+## 5. Initial Pages
+
+Implement the following pages with realistic placeholder content.
+
+### Overview Dashboard
+
+Display:
+- Project introduction.
+- Lunar south-pole exploration overview.
+- Candidate landing-site cards.
+- Sunlight availability placeholder.
+- Earth visibility placeholder.
+- Recent analysis placeholder.
+
+### Lunar Explorer
+
+Create a dedicated, large map container.
+
+For now, implement a clearly labeled map placeholder with:
+- Location selection placeholder.
+- Layer controls for illumination, Earth visibility, and elevation.
+- Coordinate display.
+- Map legend.
+
+Keep the map component isolated so another developer can integrate CesiumJS without rewriting the page.
+
+### Site Analysis
+
+Create a layout for:
+- Selected coordinates.
+- Date/time selection.
+- Sun elevation.
+- Earth elevation.
+- Sunlight availability chart.
+- Earth visibility chart.
+
+Use clearly labeled mock data.
+
+### Site Comparison
+
+Create a comparison interface supporting two or three candidate locations.
+
+Include placeholder metrics for:
+- Sunlight availability.
+- Earth visibility.
+- Terrain slope.
+- Overall suitability.
+
+### About
+
+Explain the project's objective, scientific motivation, and NASA data sources.
+
+## 6. Shared State and Integration Architecture
+
+This is especially important because six developers will work on different components.
+
+Establish a shared application state for:
+
+- Selected lunar coordinates.
+- Selected date and time.
+- Active map layer.
+- Selected landing sites.
+- Analysis results.
+
+Use React Context or another lightweight solution. Do not introduce Redux unless genuinely necessary.
+
+Create TypeScript interfaces in `types/` for:
+
+- LunarLocation
+- AnalysisRequest
+- AnalysisResult
+- SunPosition
+- EarthPosition
+- IlluminationData
+- TerrainData
+- LandingSiteComparison
+
+Keep the interfaces independent of the UI implementation.
+
+## 7. API Integration Standards
+
+Create a centralized API service layer.
+
+For example:
+
+```text
+services/
+├── apiClient.ts
+├── analysisService.ts
+├── siteService.ts
+└── mapService.ts
+```
+
+Use environment variables for the backend URL.
+
+Create placeholder service methods for:
+
+- Retrieving candidate landing sites.
+- Retrieving map layers.
+- Requesting Sun/Earth analysis.
+- Retrieving timeline data.
+- Comparing landing sites.
+- Requesting site recommendations.
+
+Do not hardcode backend URLs throughout components.
+
+Document expected request and response formats in `docs/integration_contracts.md`.
+
+## 8. Component Development Standards
+
+Establish the following rules:
+
+1. Use functional React components.
+2. Use TypeScript with explicit types.
+3. Keep components modular and reusable.
+4. Separate UI components from scientific calculations.
+5. Avoid putting API requests directly inside presentation components.
+6. Avoid large monolithic components.
+7. Use consistent naming conventions.
+8. Provide loading, error, and empty states.
+9. Do not use `any` unless absolutely necessary and documented.
+10. Use mock data in separate files, not embedded throughout components.
+
+## 9. GitHub and Team Collaboration
+
+Prepare the repository for six developers.
+
+Create:
+- A useful README.
+- CONTRIBUTING.md.
+- Frontend setup instructions.
+- Branch naming conventions.
+- Commit message conventions.
+- Component ownership guidelines.
+
+Suggested branch naming:
+
+```text
+main
+develop
+feature/frontend-shell
+feature/lunar-map
+feature/nasa-data
+feature/astronomy-engine
+feature/analytics
+feature/site-recommendations
+```
+
+Do not have developers commit directly to `main`.
+
+Document how developers should create pull requests and integrate their components.
+
+## 10. Deliverables
+
+When finished, provide:
+
+1. Fully initialized frontend project.
+2. Working application layout and navigation.
+3. All five initial pages.
+4. Reusable shared components.
+5. Shared TypeScript interfaces.
+6. Centralized API service layer.
+7. Mock data for initial UI development.
+8. Repository documentation.
+9. Instructions for running the application locally.
+10. A clear explanation of how the remaining five developers can integrate their work.
+
+## 11. Important Constraints
+
+- Do not build fake scientific calculations.
+- Clearly identify placeholder data as simulated.
+- Do not claim that mock data comes from NASA.
+- Do not overengineer the architecture.
+- Do not implement unnecessary authentication or database infrastructure.
+- Prioritize a working, maintainable frontend that can be integrated quickly.
+- Keep the project easy for six developers to understand and contribute to.
+
+Before finishing, run the frontend build and resolve TypeScript errors and build failures.
+
+The final result should be a functional frontend foundation that the other five developers can immediately start building on.

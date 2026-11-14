@@ -1,0 +1,4 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import {candidateSites,mockAnalysis} from '../src/constants/mockData.ts';
+test('fixtures disclose simulation and preserve requested scenario without claiming unknown products',()=>{const request={location:candidateSites[0],utc:'2026-11-14T12:00:00Z'};const result=mockAnalysis(request);assert.equal(result.mode,'simulated');assert.deepEqual(result.request,request);assert.equal(result.terrain.permanentlyShadowed,null);assert.equal(result.terrain.temperatureK,null);assert.equal(result.suitability,null);assert.match(result.source,/not NASA/);});
+test('catalog has distinct IDs and valid coordinates',()=>{assert.equal(new Set(candidateSites.map(s=>s.id)).size,3);for(const site of candidateSites){assert.ok(Math.abs(site.latitudeDeg)<=90);assert.ok(Math.abs(site.longitudeDeg)<=180);}});
+

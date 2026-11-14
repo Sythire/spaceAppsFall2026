@@ -1,0 +1,5 @@
+import type {LunarLocation,MapLayer} from '../../types';
+export interface MapViewportProps {location:LunarLocation|null;layers:MapLayer[];onSelect:(location:LunarLocation)=>void;}
+/** Replace this boundary with Cesium. Configure a lunar ellipsoid, never WGS84 Earth defaults. */
+export function MapViewport({location,layers}:MapViewportProps){return <div className="map-viewport" role="img" aria-label="Lunar map integration placeholder; no geographic imagery loaded"><div className="map-grid"/><div className="polar-rings"><div/><div/><div/></div><div className="map-center"><span className="crosshair">+</span><h3>Lunar south-pole viewport</h3><p>MAP PLACEHOLDER · CESIUM INTEGRATION PENDING</p><small>No terrain, imagery or scientific overlays loaded.</small></div><div className="map-coordinates">{location?location.latitudeDeg.toFixed(4)+'° N / '+location.longitudeDeg.toFixed(4)+'° E':'Select coordinates using the form'}<span>Requested layers: {layers.join(', ')||'none'} · not rendered</span></div><div className="map-legend">+ Selected location placeholder<br/>Reference grid · decorative, not georeferenced</div></div>;}
+

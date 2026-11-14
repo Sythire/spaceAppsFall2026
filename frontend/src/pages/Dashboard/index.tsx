@@ -1,7 +1,6 @@
 import {createElement} from 'react';
 import {Link} from 'react-router';
 import {ArrowRight,Compass,Orbit,Sparkles} from 'lucide-react';
-import {SitePicker} from '../../components/shared/SitePicker';
 import {MockNotice} from '../../components/shared/AsyncState';
 import {VirtualMoonTour} from '../../components/shared/VirtualMoonTour';
 
@@ -27,6 +26,5 @@ export default function Dashboard(){return <div className="home-page">
   </section>
   <section className="quick-links" aria-label="Explore the site"><Link className="quick-card quick-lilac" to="/explorer"><span className="quick-icon"><Compass size={21}/></span><span><strong>Explore a landing site</strong><small>Choose a spot and look around</small></span><ArrowRight size={17}/></Link><Link className="quick-card quick-peach" to="/missions"><span className="quick-icon"><Orbit size={21}/></span><span><strong>Meet the missions</strong><small>See what NASA is planning next</small></span><ArrowRight size={17}/></Link></section>
   <VirtualMoonTour/>
-  <section className="site-section"><div className="section-heading"><div><span className="eyebrow">PICK YOUR PATCH OF MOON</span><h2>Where should we land?</h2></div><Link to="/analysis">Analyze & compare <ArrowRight size={15}/></Link></div><SitePicker/></section>
   <p className="image-credit"><span>☾</span> Moon model: NASA Goddard Space Flight Center, using Lunar Reconnaissance Orbiter imagery and topographic data. <a href="https://svs.gsfc.nasa.gov/14959/" target="_blank" rel="noreferrer">Model details ↗</a></p>
 </div>}

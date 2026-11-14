@@ -70,8 +70,23 @@ def health():
 @app.get("/api/v1/models")
 def models():
     """Which GLB model files are present; the frontend falls back to labeled spheres otherwise."""
-    return {key: (f"/models/{name}" if os.path.isfile(os.path.join(MODEL_DIR, name)) else None)
-            for key, name in MODEL_FILES.items()}
+    manifest = {key: (f"/models/{name}" if os.path.isfile(os.path.join(MODEL_DIR, name)) else None)
+                for key, name in MODEL_FILES.items()}
+    manifest["sky"] = _sky_map()
+    return manifest
+
+
+def _sky_map() -> str | None:
+    """NASA SVS Deep Star Map in celestial (J2000) coordinates, if one is in modelResources.
+    Galactic-coordinate versions (*_gal*) are ignored because they need a different rotation."""
+    if not os.path.isdir(MODEL_DIR):
+        return None
+    names = sorted(n for n in os.listdir(MODEL_DIR)
+                   if n.lower().startswith("starmap") and "_gal" not in n.lower()
+                   and n.lower().endswith((".exr", ".jpg", ".jpeg", ".png")))
+    # Prefer the smallest resolution available (4k before 8k/16k) to keep load time down.
+    names.sort(key=lambda n: (os.path.getsize(os.path.join(MODEL_DIR, n)), n))
+    return f"/models/{names[0]}" if names else None
 
 
 @app.get("/api/v1/scene")

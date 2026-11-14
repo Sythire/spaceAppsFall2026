@@ -19,7 +19,7 @@ code{font-size:11px;background:#0a131e;padding:1px 5px;border-radius:3px;color:#
 .scene-viewport canvas{display:block}
 .scene-labels{position:absolute;inset:0;pointer-events:none}
 .scene-label{font-size:11px;color:#dbe5ef;background:#0b111bcc;border:1px solid #2e4257;border-radius:4px;padding:1px 6px;white-space:nowrap}
-.scene-label-sun{color:#ffd27a;border-color:#6b5a30}.scene-label-earth{color:#9cd0ff;border-color:#2f5577}.scene-label-mars{color:#f0a084;border-color:#6b3a2a}
+.scene-label-sun{color:#ffd27a;border-color:#6b5a30}.scene-label-earth{color:#9cd0ff;border-color:#2f5577}.scene-label-mars{color:#f0a084;border-color:#6b3a2a}.scene-label-mercury{color:#c9c2b8;border-color:#5a554e}.scene-label-venus{color:#f2d69a;border-color:#6e5b33}
 .scene-label-grid{font-size:9px;color:#8fbfc4;background:transparent;border:0}
 .scene-label-site{font-size:10px;color:#bdeee5;border-color:#2f5a55}
 .scene-toggles{position:absolute;top:14px;right:14px;z-index:2;background:#0b111bdd;border:1px solid #28384b;border-radius:7px;padding:10px 12px;display:grid;gap:6px;font-size:11px;max-width:210px}

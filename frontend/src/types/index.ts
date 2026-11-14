@@ -18,7 +18,7 @@ export type Vec3 = [number, number, number];
 export type SpiceQuat = [number, number, number, number];
 export interface HorizonAngles { elevationDeg: number; azimuthDeg: number; }
 /** Sun-centered positions (ECLIPJ2000 axes, km, geometric). The Sun is the origin. */
-export interface HelioPositions { moon: Vec3; earth: Vec3; mars: Vec3; }
+export interface HelioPositions { moon: Vec3; earth: Vec3; mars: Vec3; mercury: Vec3; venus: Vec3; }
 /**
  * sun/earth/mars: Moon-centered MOON_ME vectors (km, LT+S), used for site geometry and sub-points.
  * helio: Sun-centered display positions. moonRotationQuat: MOON_ME -> ECLIPJ2000.
@@ -43,7 +43,7 @@ export interface SiteThermal { dayMaxK: number | null; nightMinK: number | null;
 export interface TerrainGrid { width: number; height: number; heightsM: Int16Array; }
 
 /** sky: NASA Deep Star Map (J2000 celestial, equirectangular), if present. */
-export interface ModelManifest { moon: string | null; earth: string | null; sun: string | null; mars: string | null; sky?: string | null; }
+export interface ModelManifest { moon: string | null; earth: string | null; sun: string | null; mars: string | null; mercury: string | null; venus: string | null; sky?: string | null; }
 
 
 export interface HorizonSample extends HorizonAngles { distanceKm: number; aboveHorizon: boolean; }

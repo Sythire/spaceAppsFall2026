@@ -1,0 +1,6 @@
+import {useState} from 'react';
+import {NavLink} from 'react-router';
+import {LayoutDashboard,Globe,ChartNoAxesCombined,Columns3,Info,PanelLeftClose,PanelLeftOpen,Moon} from 'lucide-react';
+export const navigation=[{path:'/',label:'Overview',icon:LayoutDashboard},{path:'/explorer',label:'Lunar Explorer',icon:Globe},{path:'/analysis',label:'Site Analysis',icon:ChartNoAxesCombined},{path:'/comparison',label:'Site Comparison',icon:Columns3},{path:'/about',label:'About',icon:Info}];
+export function Sidebar(){const [collapsed,setCollapsed]=useState(false);return <aside className={'sidebar '+(collapsed?'collapsed':'')}><div className="brand"><Moon size={24}/>{!collapsed&&<span>LunarSite<small>EXPLORER</small></span>}</div><button className="collapse" aria-label={collapsed?'Expand navigation':'Collapse navigation'} onClick={()=>setCollapsed(!collapsed)}>{collapsed?<PanelLeftOpen size={18}/>:<PanelLeftClose size={18}/>}</button><nav aria-label="Main navigation">{navigation.map(({path,label,icon:Icon})=><NavLink key={path} to={path} end={path==='/'} title={label}><Icon size={19}/>{!collapsed&&label}</NavLink>)}</nav>{!collapsed&&<div className="sidebar-footer">NASA SPACE APPS<br/><span>Lunar landing-site workspace</span></div>}</aside>;}
+

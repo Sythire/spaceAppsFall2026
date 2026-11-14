@@ -9,6 +9,8 @@ from __future__ import annotations
 import math
 import os
 import threading
+import hashlib
+from functools import lru_cache, wraps
 from datetime import datetime, timezone
 
 import numpy as np
@@ -44,13 +46,28 @@ class EphemerisError(ValueError):
     """Raised for requests outside kernel coverage or otherwise invalid."""
 
 
+class KernelError(RuntimeError):
+    """Required local scientific data are missing or cannot be loaded."""
+
+
 def load_kernels() -> None:
     global _loaded
     with _lock:
         if _loaded:
             return
-        for name in KERNELS:
-            spice.furnsh(os.path.join(KERNEL_DIR, name))
+        missing = [name for name in KERNELS if not os.path.isfile(os.path.join(KERNEL_DIR, name))]
+        if missing:
+            raise KernelError("Missing SPICE kernels: " + ", ".join(missing))
+        loaded = []
+        try:
+            for name in KERNELS:
+                path = os.path.join(KERNEL_DIR, name)
+                spice.furnsh(path)
+                loaded.append(path)
+        except spice.utils.exceptions.SpiceyError as exc:
+            for path in reversed(loaded):
+                spice.unload(path)
+            raise KernelError("Unable to load SPICE kernels: " + str(exc)) from exc
         _loaded = True
 
 
@@ -91,9 +108,28 @@ def _horizon_angles(body_pos: np.ndarray, lat_deg: float, lon_deg: float) -> tup
     site, up, east, north = _site_basis(lat_deg, lon_deg)
     v = body_pos - site
     v /= np.linalg.norm(v, axis=1, keepdims=True)
-    el = np.degrees(np.arcsin(np.clip(v @ up, -1, 1)))
-    az = (np.degrees(np.arctan2(v @ east, v @ north)) + 360.0) % 360.0
+    el = np.degrees(np.arcsin(np.clip(np.sum(v * up, axis=1), -1, 1)))
+    az = (np.degrees(np.arctan2(np.sum(v * east, axis=1), np.sum(v * north, axis=1))) + 360.0) % 360.0
     return el, az
+
+
+def _surface_geometry(target: str, ets: list[float], lat: float, lon: float):
+    """Apparent topocentric vectors, including the surface observer's velocity.
+
+    Unlike subtracting a site from a Moon-center apparent vector, SPKCPO applies
+    light time and stellar aberration for the actual surface observer.
+    """
+    site, up, east, north = _site_basis(lat, lon)
+    vectors = np.asarray([
+        spice.spkcpo(target, et, FRAME, "OBSERVER", ABCORR, site, "MOON", FRAME)[0][:3]
+        for et in ets
+    ])
+    distances = np.linalg.norm(vectors, axis=1)
+    directions = vectors / distances[:, None]
+    elevation = np.degrees(np.arcsin(np.clip(np.sum(directions * up, axis=1), -1, 1)))
+    azimuth = np.degrees(np.arctan2(np.sum(directions * east, axis=1),
+                                   np.sum(directions * north, axis=1))) % 360
+    return elevation, azimuth, distances
 
 
 def _latlon(vec: np.ndarray) -> dict:
@@ -102,6 +138,7 @@ def _latlon(vec: np.ndarray) -> dict:
 
 
 def _guard(fn):
+    @wraps(fn)
     def wrapper(*args, **kwargs):
         load_kernels()
         with _lock:
@@ -139,8 +176,8 @@ def series(start: datetime, hours: float, step_hours: float, lat: float | None, 
     samples = []
     site = None
     if lat is not None and lon is not None:
-        sel, saz = _horizon_angles(pos["sun"], lat, lon)
-        eel, eaz = _horizon_angles(pos["earth"], lat, lon)
+        sel, saz, _ = _surface_geometry("SUN", ets, lat, lon)
+        eel, eaz, _ = _surface_geometry("EARTH", ets, lat, lon)
         site = (sel, saz, eel, eaz)
     for i, et in enumerate(ets):
         s = {"utc": _et_to_iso(et), "sun": pos["sun"][i].tolist(), "earth": pos["earth"][i].tolist(),
@@ -157,7 +194,7 @@ def series(start: datetime, hours: float, step_hours: float, lat: float | None, 
 
 def _find_crossings(target: str, et0: float, lat: float, lon: float, span_h: float, step_h: float) -> list[tuple[float, str]]:
     ets = [et0 + i * step_h * 3600.0 for i in range(int(span_h / step_h) + 1)]
-    el, _ = _horizon_angles(_positions(target, ets), lat, lon)
+    el, _, _ = _surface_geometry(target, ets, lat, lon)
     events = []
     for i in range(len(ets) - 1):
         a, b = el[i], el[i + 1]
@@ -166,7 +203,7 @@ def _find_crossings(target: str, et0: float, lat: float, lon: float, span_h: flo
         lo, hi, flo = ets[i], ets[i + 1], a
         for _ in range(20):  # bisect to well under a minute
             mid = 0.5 * (lo + hi)
-            fm = _horizon_angles(_positions(target, [mid]), lat, lon)[0][0]
+            fm = _surface_geometry(target, [mid], lat, lon)[0][0]
             if (fm > 0) == (flo > 0):
                 lo, flo = mid, fm
             else:
@@ -184,12 +221,11 @@ def site(lat: float, lon: float, utc: datetime, search_days: float = 35.0) -> di
               "source": SOURCE, "horizonMethod": HORIZON_METHOD, "searchWindowDays": search_days,
               "azimuthConvention": "degrees clockwise from local north"}
     for key in ("sun", "earth"):
-        p = _positions(BODIES[key], [et])
-        el, az = _horizon_angles(p, lat, lon)
+        el, az, distance = _surface_geometry(BODIES[key], [et], lat, lon)
         events = _find_crossings(BODIES[key], et, lat, lon, search_days * 24, 1.0)
         nxt = lambda kind: next((_et_to_iso(t) for t, k in events if k == kind), None)
         result[key] = {"elevationDeg": float(el[0]), "azimuthDeg": float(az[0]),
-                       "distanceKm": float(np.linalg.norm(p[0])), "aboveHorizon": bool(el[0] > 0),
+                       "distanceKm": float(distance[0]), "aboveHorizon": bool(el[0] > 0),
                        "nextSet": nxt("set"), "nextRise": nxt("rise")}
     # Solar flux at the Moon's distance from the Sun, and on an ideal flat horizontal panel.
     au_km = 149597870.7
@@ -203,7 +239,42 @@ def site(lat: float, lon: float, utc: datetime, search_days: float = 35.0) -> di
     return result
 
 
+@lru_cache(maxsize=1)
+def _provenance() -> dict:
+    """Called under the SPICE lock; bounds come from the installed files."""
+    root = "https://naif.jpl.nasa.gov/pub/naif/generic_kernels/"
+    paths = ["lsk/naif0012.tls", "pck/pck00011.tpc", "spk/planets/de440s.bsp",
+             "pck/moon_pa_de440_200625.bpc", "fk/satellites/moon_de440_250416.tf"]
+    kernels = []
+    for name, remote in zip(KERNELS, paths):
+        path = os.path.join(KERNEL_DIR, name)
+        digest = hashlib.sha256()
+        with open(path, "rb") as stream:
+            for block in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(block)
+        kernels.append({"file": name, "url": root + remote, "sha256": digest.hexdigest(),
+                        "bytes": os.path.getsize(path)})
+    windows = [spice.spkcov(os.path.join(KERNEL_DIR, "de440s.bsp"), body) for body in (10, 301, 399)]
+    orientation = spice.utils.support_types.SPICEDOUBLE_CELL(100)
+    spice.pckcov(os.path.join(KERNEL_DIR, "moon_pa_de440_200625.bpc"), 31008, orientation)
+    windows.append(orientation)
+    common = windows[0]
+    for window in windows[1:]:
+        common = spice.wnintd(common, window)
+    intervals = [spice.wnfetd(common, i) for i in range(spice.wncard(common))]
+    return {"provider": "NASA/JPL NAIF SPICE", "kernels": kernels, "frame": FRAME,
+            "frameRealization": "MOON_ME_DE440_ME421", "aberrationCorrection": ABCORR,
+            "toolkitVersion": spice.tkvrsn("TOOLKIT"), "spiceypyVersion": spice.__version__,
+            "coverage": [{"startUtc": _et_to_iso(a), "endUtc": _et_to_iso(b)} for a, b in intervals],
+            "coverageNote": "Intersection of Sun/Earth/Moon SPK and lunar orientation coverage; "
+                            "light-time correction can require data before an interval boundary.",
+            "retrievedAtUtc": None,
+            "retrievalNote": "Bundled local kernels; original download date is not recorded. SHA256 identifies installed bytes."}
+
+
+@_guard
 def coverage() -> dict:
-    load_kernels()
-    return {"kernels": KERNELS, "frame": FRAME, "validFromUtc": "1849-12-26", "validToUtc": "2150-01-21",
-            "source": SOURCE}
+    metadata = _provenance()
+    intervals = metadata["coverage"]
+    return {"kernels": KERNELS, "frame": FRAME, "validFromUtc": intervals[0]["startUtc"],
+            "validToUtc": intervals[-1]["endUtc"], "source": SOURCE, "provenance": metadata}

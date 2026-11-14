@@ -5,7 +5,7 @@ frontend/.env.local:
 VITE_USE_MOCKS=false
 VITE_API_BASE_URL=http://127.0.0.1:8000/api/v1
 ```
-Default is simulated mode. Backend mode requires a configured base URL. Requests use JSON; non-2xx results surface errors, and fetch times out after 15 seconds. Configure backend CORS for the frontend origin. These are proposed endpoints, not an existing backend. No silent fallback to mocks after service failure.
+The example environment config uses backend mode for Analysis/Comparison; `VITE_USE_MOCKS=true` opts into fixture demo mode. The explorer always uses live SPICE. Backend mode requires a configured base URL. Requests use JSON; non-2xx results surface errors, and fetch times out after 15 seconds. Configure backend CORS for the frontend origin. The endpoints below are implemented except recommendations. No silent fallback to mocks after service failure. Page notices, site labels and charts distinguish demo fixtures from modeled results.
 
 | Method/path | Request | Response |
 | --- | --- | --- |
@@ -14,7 +14,9 @@ Default is simulated mode. Backend mode requires a configured base URL. Requests
 | POST /analysis | AnalysisRequest | AnalysisResult |
 | POST /timeline | AnalysisRequest | TimelinePoint[] |
 | POST /comparisons | { requests: AnalysisRequest[] } | LandingSiteComparison |
-| POST /recommendations | AnalysisRequest | Recommendation[] |
+| GET /data/sources | none | KernelProvenance |
+
+`POST /recommendations` remains planned; no scientific ranking model is implemented.
 
 Canonical interfaces: frontend/src/types/index.ts. Keep backend response changes synchronized there and in this document.
 
@@ -28,28 +30,34 @@ Canonical interfaces: frontend/src/types/index.ts. Keep backend response changes
     "longitudeDeg": 32,
     "frame": "MOON_ME"
   },
-  "utc": "2026-11-14T12:00:00.000Z"
+  "utc": "2026-11-14T12:00:00.000Z",
+  "durationHours": 720,
+  "stepHours": 1
 }
 ```
-Coordinates: planetocentric north-positive latitude [-90,90], east-positive longitude [-180,180]. Do not mix Mean Earth and principal-axis lunar frames. utc is an ISO 8601 timestamp with Z. Scientific provider owns frame/UTC validation.
+Coordinates: planetocentric north-positive latitude [-90,90], east-positive longitude [-180,180]. Do not mix Mean Earth and principal-axis lunar frames. utc is an ISO 8601 timestamp with Z or explicit offset. Scientific provider validates frame/UTC. Requests default to 720 hours at 1-hour cadence; duration is 1 second–2880 hours, step is 0.25–24 hours, and duration/step must be ≤4000. The final endpoint is always sampled, including a partial last step. Comparisons accept 1–3 scenarios.
 
 ## AnalysisResult shape
-- request: exact scenario evaluated.
-- mode: simulated or verified. verified requires actual source validation.
-- source: explicit provenance string; extend to per-product metadata before multi-source science integration.
-- sun / earth: elevationDeg, azimuthDeg; azimuth convention must be agreed as clockwise from north before real integration.
+- request: parsed scenario evaluated, including interval/cadence defaults and catalog provenance when supplied. Null optional catalog fields are omitted.
+- mode: simulated, modeled, or verified. SPICE analysis returns modeled; it is a physical approximation derived from actual NASA kernels, not a terrain-verified product.
+- source: explicit provenance string. metadata.provenance identifies exact local kernel hashes, source URLs, software versions, frame realization and installed coverage. Original kernel download date is unknown and remains null.
+- sun / earth: elevationDeg, azimuthDeg, distanceKm, aboveHorizon, nextRise, nextSet. Azimuth is clockwise from north. Distances are from the surface observer.
 - illumination: sunlightPercent, timeline.
-- timeline entries: hour (hours from scenario start), sunlightPercent, earthVisibilityPercent.
-- earthVisibilityPercent: percentage over an agreed interval; currently no verified interval is claimed.
+- timeline entries: hour (UTC calendar hours from scenario start), utc, sunlightPercent, earthVisibilityPercent, sun, earth, solarFluxWm2, horizontalIrradianceWm2. Instantaneous percentages are binary 0/100 body-center visibility, not panel efficiency or fractional disk visibility.
+- illumination.sunlightPercent / earthVisibilityPercent: percentages of elapsed SI time over the requested interval, integrated using refined crossings rather than counting chart samples.
+- illumination: additionally daylightHours, darknessHours, aboveHorizonHours, belowHorizonHours, aboveHorizonPercent, visibleWindows, hiddenWindows, events, nextRise, nextSet. earthVisibility has the same visibility summary fields.
+- each window: startUtc, endUtc, durationHours, clippedAtStart, clippedAtEnd. Next events are null when none is found inside the requested interval.
+- interval: startUtc, endUtc, durationHours, elapsedHours, stepHours, sampleCount. elapsedHours includes any leap seconds.
+- metadata: horizonMethod, azimuthConvention, units, UTC timescale, event scan spacing (≤1 hour), numerical refinement bracket (0.1 seconds), generatedAtUtc, limitations, provenance, uncertaintyDeg (null: unquantified).
 - terrain: slopeDeg, temperatureK, permanentlyShadowed, each nullable.
 - suitability: nullable string; no score/ranking until the team agrees on a documented model.
 - comparison: results array, requested in selection order.
 - recommendation: location, reason and mode. Mock recommendations are empty.
 
 ## Integration gates
-Before verified mode, add explicit timeline interval/cadence, per-product provenance and coverage, horizon method, reference-frame kernel/version, uncertainties and error codes. No arbitrary-time thermal prediction from a climatology. No PSR claim from one dark timestamp. No relay availability claim from direct Earth elevation alone.
+Current modeled analysis results specify interval, cadence, kernel/frame versions, coverage, and horizon assumptions. They do not include terrain or quantified physical uncertainty. The explorer separately provides LOLA elevation and regional slope through `/site` and `/terrain/*`, with illumination/elevation overlay availability exposed by `/map/layers`. These do not supply terrain-aware horizons to `/analysis`. Events refine sampled sign changes; brief/grazing events between samples can be missed. Numerical bracket size is not physical accuracy. No arbitrary-time thermal prediction from a climatology. No PSR claim from one dark timestamp. No relay availability or ground-station contact claim from direct Earth elevation alone. Body-center visibility ignores partial disks and eclipses. Invalid inputs and SPICE coverage errors return 422; a missing-kernel condition during a request returns 503, while missing startup kernels fail startup.
 
-Service methods exist for every endpoint; analysis/comparison, site catalog and layers are currently wired to UI. Dedicated timeline and recommendations are ready for integration, not a claim of completed backend functionality.
+Existing frontend service methods match the implemented analysis, comparison, catalog, layer and timeline endpoints. Recommendations remain planned. Analysis/Comparison use live results with `VITE_USE_MOCKS=false`, including shared UTC, duration and sample-spacing controls.
 
 
 ## Implemented ephemeris endpoints (backend/api)

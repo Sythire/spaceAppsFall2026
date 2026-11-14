@@ -1,6 +1,8 @@
 # Logs
 .venv/
 __pycache__/
+*.py[cod]
+.DS_Store
 .npm-cache/
 logs
 *.log

@@ -4,9 +4,9 @@ export const candidateSites: LunarLocation[] = [
 {id:'demo-b',name:'Polar candidate B',latitudeDeg:-88.8,longitudeDeg:-45,frame:'MOON_ME'},
 {id:'demo-c',name:'Polar candidate C',latitudeDeg:-87.9,longitudeDeg:110,frame:'MOON_ME'}];
 export const mapLayers: MapLayerDefinition[] = [
-{id:'illumination',name:'Illumination',available:false},
+{id:'illumination',name:'Illumination',available:true},
 {id:'earth-visibility',name:'Earth visibility',available:false},
-{id:'elevation',name:'Elevation',available:false}];
+{id:'elevation',name:'Elevation',available:true}];
 const fixtures = [
 {sun:8.4,earth:4.1,light:72,visibility:61,slope:7.2},
 {sun:5.2,earth:2.8,light:61,visibility:53,slope:11.8},

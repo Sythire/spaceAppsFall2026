@@ -19,16 +19,16 @@ const rows: {label:string;value:(r:AnalysisResult)=>string}[] = [
  {label:'Terrain slope',value:r=>r.terrain.slopeDeg===null?'Unknown':r.terrain.slopeDeg.toFixed(1)+'°'},
  {label:'Suitability',value:r=>r.suitability??'Not evaluated'},
 ];
-export default function Comparison(){
+export default function Comparison({embedded=false}:{embedded?:boolean}){
  const {selectedSites,utc,durationHours,stepHours,toggleSite}=useAppState();
  const load=useCallback(()=>selectedSites.length>=2?analysisService.compare(selectedSites.map(location=>({location,utc,durationHours,stepHours}))):Promise.resolve(null),[selectedSites,utc,durationHours,stepHours]);
  const resource=useAsync(load);
  return <>
-  <MockNotice/>
-  <div className="page-heading"><h2>Compare landing scenarios</h2><p>Select two or three locations to compare the same UTC start and analysis interval.</p></div>
-  <Panel title="Choose comparison sites"><SitePicker/></Panel>
+  {!embedded&&<MockNotice/>}
+  {!embedded&&<div className="page-heading"><h2>Compare landing scenarios</h2><p>Select two or three locations to compare the same UTC start and analysis interval.</p></div>}
+  {!embedded&&<Panel title="Choose comparison sites"><SitePicker/></Panel>}
   <Panel title={`Selected sites · ${selectedSites.length} / 3`}>
-   <ScenarioControls/>
+   {!embedded&&<ScenarioControls/>}
    <div className="button-row">{selectedSites.map(site=><button key={site.id} onClick={()=>toggleSite(site)} aria-label={`Remove ${site.name} from comparison`}>{site.name} ×</button>)}</div>
    <AsyncState {...resource}/>
    {selectedSites.length<2&&<p className="muted">Add at least two sites using “Compare +” above or from Site Analysis.</p>}

@@ -1,0 +1,22 @@
+.plans-page .mission-row{grid-template-columns:105px 154px minmax(0,1fr) 32px;gap:14px}
+.mission-art{min-width:0;margin:0;overflow:hidden;border:1px solid #ffffff35;border-radius:12px;background:#211f37}
+.mission-art>a{position:relative;display:block;height:88px;overflow:hidden;color:#fff;text-decoration:none}
+.mission-art img{display:block;width:100%;height:100%;object-fit:cover;transition:transform .35s ease}
+.mission-art a:hover img{transform:scale(1.045)}
+.mission-art img.image-unavailable{visibility:hidden}
+.mission-art figcaption{position:absolute;right:0;bottom:0;left:0;display:flex;align-items:center;justify-content:space-between;gap:4px;padding:5px 7px;background:linear-gradient(transparent,#171624e8);color:#fff;font-size:7px;font-weight:750;line-height:1.25;text-shadow:0 1px 3px #000;}
+.mission-art figcaption svg{flex:none}
+.mission-art-compact{margin:0 0 13px;border:0;border-radius:11px}
+.mission-art-compact>a{height:auto;aspect-ratio:16/7}
+.plan-card .mission-art-compact{margin:-17px -17px 14px;border-radius:16px 16px 10px 10px}
+.plan-card .mission-art-compact>a{aspect-ratio:16/7}
+@media(max-width:760px){
+ .plans-page .mission-row{grid-template-columns:1fr 28px;gap:8px 10px}
+ .plans-page .mission-year{grid-column:1/-1}
+ .plans-page .mission-art{grid-column:1;grid-row:2;width:min(100%,320px)}
+ .plans-page .mission-art>a{height:112px}
+ .plans-page .mission-copy{grid-column:1/-1;grid-row:3}
+ .plans-page .mission-index{grid-column:2;grid-row:2;align-self:start}
+ .plan-card .mission-art-compact>a{aspect-ratio:16/8}
+}
+@media(prefers-reduced-motion:reduce){.mission-art img{transition:none!important}}

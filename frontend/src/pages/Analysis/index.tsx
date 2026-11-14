@@ -9,6 +9,7 @@ import {SitePicker} from '../../components/shared/SitePicker';
 import {ScenarioControls} from '../../components/shared/ScenarioControls';
 import {TimelineChart} from '../../components/shared/TimelineChart';
 import {VisibilityWindows} from '../../components/shared/VisibilityWindows';
+import Comparison from '../Comparison';
 
 export default function Analysis(){
  const {location,utc,durationHours,stepHours,setAnalysis,selectedSites,toggleSite}=useAppState();
@@ -19,7 +20,7 @@ export default function Analysis(){
  const simulated=result?.mode==='simulated';
  return <>
   <MockNotice/>
-  <div className="page-heading"><h2>Site Analysis</h2><p>Choose a site, UTC start and duration to evaluate lighting and Earth visibility.</p></div>
+  <div className="page-heading"><span className="eyebrow">SITE RESEARCH · DECISION WORKSPACE</span><h2>Compare the conditions at each site.</h2><p>Choose a site, UTC start and duration to evaluate lighting and Earth visibility.</p></div>
   <Panel title="Choose a location"><SitePicker/><p className="muted">For custom coordinates, select a point in the <Link to="/explorer">Lunar Explorer</Link>, then return here.</p></Panel>
   <Panel title={location?`Scenario · ${location.name}`:'Scenario'}>
    <ScenarioControls/>
@@ -48,5 +49,6 @@ export default function Analysis(){
     {result.metadata&&<details><summary>Sources, methods and limitations</summary><p className="muted">{result.metadata.horizonMethod}</p><ul>{result.metadata.limitations.map(note=><li key={note}>{note}</li>)}</ul><p className="muted">Frame: {result.metadata.provenance.frameRealization}</p><ul>{result.metadata.provenance.kernels.map(k=><li key={k.file}><a href={k.url}>{k.file}</a></li>)}</ul></details>}
    </>}
   </Panel>
+  <section className="research-step"><div className="section-heading"><div><span className="eyebrow">WEIGH OPTIONS</span><h2>Compare landing sites</h2></div></div><Comparison embedded/></section>
  </>;
 }

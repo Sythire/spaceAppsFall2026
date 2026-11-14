@@ -1,0 +1,74 @@
+body.dark-mode{
+  color-scheme:dark;
+  --ink:#ecebff;--muted:#aaa9c4;--purple:#aaa1ff;--purple-dark:#252148;--line:#393653;
+  background:#11111b;color:#ecebff;
+}
+body.dark-mode .workspace{background:#11111b;color:#ecebff}
+body.dark-mode .topbar{background:#171722;border-color:#302e41;color:#ecebff}
+body.dark-mode .topbar h1,body.dark-mode .page-heading h2,body.dark-mode .section-heading h2,
+body.dark-mode .panel h2,body.dark-mode .site-grid h3,body.dark-mode .map-controls h2,
+body.dark-mode .map-controls h3,body.dark-mode .about-page h2,body.dark-mode .about-page h3,
+body.dark-mode .plans-page h2,body.dark-mode .plans-page h3{color:#f1efff}
+body.dark-mode .eyebrow{color:#b7afff}
+body.dark-mode .mission-tagline,body.dark-mode .page-heading p,body.dark-mode .muted,
+body.dark-mode .site-grid .site-coordinates,body.dark-mode .about-page p{color:#aaa9c4}
+body.dark-mode .theme-toggle{display:inline-flex;align-items:center;justify-content:center;gap:7px;white-space:nowrap;padding:9px 12px;border:1px solid #48445f;border-radius:11px;background:#242333;color:#f1efff;font-size:10px;font-weight:750}
+body.dark-mode .theme-toggle:hover{background:#302d48;border-color:#7770b2}
+body.dark-mode .topbar-tools input,body.dark-mode input{color-scheme:dark;background:#201f2d;border-color:#454259;color:#efedff}
+body.dark-mode .panel,body.dark-mode .metric,body.dark-mode .site-grid .panel,
+body.dark-mode .map-controls,body.dark-mode .about-source-card,body.dark-mode .data-truth,
+body.dark-mode .two-column>.panel,body.dark-mode .plan-card{border-color:#38364b;background:#1b1a27;color:#e9e7fa;box-shadow:0 7px 22px #0003}
+body.dark-mode .about-steps article{border-color:#38364b;background:linear-gradient(145deg,#211f30,#191823);color:#e9e7fa;box-shadow:0 7px 20px #0003}
+body.dark-mode .about-steps article h3{color:#f1efff}
+body.dark-mode .about-steps article p{color:#b8b6ce}
+body.dark-mode .about-step-icon{background:#34304f;color:#c2baff}
+body.dark-mode .about-step-icon span{border-color:#211f30;background:#ffdb79;color:#302b6f}
+body.dark-mode .data-truth h2{color:#f1efff}
+body.dark-mode .data-truth p{color:#bbb9d2}
+body.dark-mode .about-source-card strong{color:#f1efff}
+body.dark-mode .about-source-card small{color:#bbb9d2}
+body.dark-mode .site-grid .panel.is-selected{border-color:#8e83ed;background:linear-gradient(145deg,#26233b,#201e30)}
+body.dark-mode .site-grid .tag,body.dark-mode .compare-count,body.dark-mode .research-hint,
+body.dark-mode .map-controls .layer-status,body.dark-mode .research-step .empty-state,
+body.dark-mode .tour-detail{border-color:#403c5b;background:#29263d;color:#ccc8ed}
+body.dark-mode .site-selected-mark{color:#91dfc4}
+body.dark-mode .button-row button:nth-child(2),body.dark-mode .section-heading>a,
+body.dark-mode .quick-card,body.dark-mode .about-step-icon,body.dark-mode .fullscreen-button,
+body.dark-mode .tour-navigation .tour-previous{border-color:#47445f;background:#272637;color:#e7e4ff}
+body.dark-mode .button-row button:first-child{background:#756be0;color:#fff}
+body.dark-mode .button-row button:first-child.active{background:#285b4e;color:#c7f4e5}
+body.dark-mode .quick-lilac,body.dark-mode .plan-lilac{border-color:#484264;background:#29253e}
+body.dark-mode .quick-peach,body.dark-mode .plan-peach{border-color:#59413f;background:#302423}
+body.dark-mode .plan-mint{border-color:#345149;background:#1e302c}
+body.dark-mode .plan-when,body.dark-mode .plan-card p,body.dark-mode .about-source-card small{color:#bbb9d2}
+body.dark-mode .mock-notice{border-color:#5a4c2f;background:#30291b;color:#f3d991;box-shadow:none}
+body.dark-mode .clps-note{border:1px solid #403b60;background:linear-gradient(105deg,#242139,#201e30);color:#efedff;box-shadow:0 8px 24px #0003}
+body.dark-mode .clps-note .eyebrow{color:#c0b8ff}
+body.dark-mode .clps-note p{color:#cfccdf}
+body.dark-mode .clps-note a{color:#c0b8ff}
+body.dark-mode .clps-badge{background:#756be0;color:#fff}
+body.dark-mode table{background:#1b1a27;color:#e9e7fa}
+body.dark-mode thead{background:#252338}
+body.dark-mode th,body.dark-mode td{border-color:#373549;color:#d5d3e7}
+body.dark-mode tbody tr:hover{background:#29273a}
+body.dark-mode .table-scroll{border-color:#39374c}
+body.dark-mode .map-controls form label,body.dark-mode .map-controls .checkbox{color:#d1cfe5}
+body.dark-mode .map-controls .checkbox{border-color:#39374c}
+body.dark-mode .map-viewport{border-color:#403d5c}
+body.dark-mode .mission-row{border-color:#39364d;background:#1b1a27;color:#e9e7fa}
+body.dark-mode .mission-copy p,body.dark-mode .source-links small{color:#aaa9c4}
+body.dark-mode .source-links a,body.dark-mode .about-source-card a{color:#b7afff}
+body.dark-mode .tour-guide{background:#1b1a27;color:#e9e7fa}
+body.dark-mode .tour-guide h3{color:#f1efff}
+body.dark-mode .tour-description,body.dark-mode .tour-credit{color:#c1bfd6}
+body.dark-mode .tour-guide-top{color:#b7afff}
+body.dark-mode .tour-guide-top>span>span,body.dark-mode .tour-stop-kind{color:#aaa9c4}
+body.dark-mode .fullscreen-button:hover{background:#34314b}
+body.dark-mode .about-hero{background:linear-gradient(130deg,#27234f,#3b347e 72%,#514994)}
+body.dark-mode .about-hero p,body.dark-mode .plans-hero p{color:#e2dfff}
+body.dark-mode footer{border-color:#302e41;color:#8988a3}
+body.dark-mode a{color:#bab2ff}
+body.dark-mode .sidebar nav a.active{background:#f1efff;color:#26224f}
+body.dark-mode .sidebar nav a.active svg{color:#655bd3}
+body.dark-mode :focus-visible{outline-color:#ffe08b}
+@media(max-width:760px){body.dark-mode .sidebar,body.dark-mode .sidebar.collapsed{background:linear-gradient(180deg,#302b6f,#252148)}}

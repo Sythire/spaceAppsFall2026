@@ -3,14 +3,5 @@ import {useAsync} from '../../hooks/useAsync';
 import {useAppState} from '../../context/AppContext';
 import {AsyncState} from './AsyncState';
 import {isMockMode} from '../../services/apiClient';
-export function SitePicker(){
- const state=useAppState();
- const resource=useAsync(siteService.getSites);
- return <><AsyncState {...resource} empty={resource.data?.length===0}/><div className="site-grid">{resource.data?.map(site=><article className="panel" key={site.id}>
-  <span className="tag">{isMockMode?'SIMULATED CANDIDATE':site.kind==='historical'?'NASA HISTORICAL SITE':site.kind==='clps-landed'?'NASA CLPS · LANDED':site.kind==='clps-planned'?'NASA CLPS · PLANNED TARGET REGION':'HYPOTHETICAL TEST SITE'}</span>
-  <h3>{site.name}</h3>{site.status&&<p className="muted">{site.status}</p>}<p>{site.latitudeDeg}° N · {site.longitudeDeg}° E</p>
-  {site.source&&<p><a href={site.source} target="_blank" rel="noreferrer">Coordinate source ↗</a></p>}
-  <div className="button-row"><button className={state.location?.id===site.id?'active':''} onClick={()=>state.setLocation(site)}>{state.location?.id===site.id?'Selected':'Select site'}</button><button aria-pressed={state.selectedSites.some(s=>s.id===site.id)} disabled={state.selectedSites.length===3&&!state.selectedSites.some(s=>s.id===site.id)} onClick={()=>state.toggleSite(site)}>{state.selectedSites.some(s=>s.id===site.id)?'Remove comparison':'Compare +'}</button></div>
- </article>)}</div></>;
-}
+export function SitePicker(){const state=useAppState();const resource=useAsync(siteService.getSites);return <><AsyncState {...resource} empty={resource.data?.length===0}/><div className="site-grid">{resource.data?.map(site=>{const active=state.location?.id===site.id;const comparing=state.selectedSites.some(s=>s.id===site.id);const latitude=`${Math.abs(site.latitudeDeg).toFixed(2)}° ${site.latitudeDeg<0?'S':'N'}`;const longitude=`${Math.abs(site.longitudeDeg).toFixed(2)}° ${site.longitudeDeg<0?'W':'E'}`;return <article className={`panel site-card${active?' is-selected':''}`} key={site.id}><div className="site-card-top"><span className="tag">{isMockMode?'SIMULATED CANDIDATE':site.kind==='historical'?'NASA HISTORICAL SITE':site.kind==='clps-landed'?'NASA CLPS · LANDED':site.kind==='clps-planned'?'NASA CLPS · PLANNED TARGET REGION':'HYPOTHETICAL TEST SITE'}</span>{active&&<span className="site-selected-mark">Selected</span>}</div><h3>{site.name}</h3>{site.status&&<p className="muted">{site.status}</p>}{site.source&&<p><a href={site.source} target="_blank" rel="noreferrer">Coordinate source ↗</a></p>}<p className="site-coordinates"><span aria-hidden="true">⌖</span>{latitude} <i>·</i> {longitude}</p><div className="button-row"><button className={active?'active':''} aria-pressed={active} onClick={()=>state.setLocation(site)}>{active?'Selected':'Use for analysis'}</button><button aria-pressed={comparing} disabled={state.selectedSites.length===3&&!comparing} onClick={()=>state.toggleSite(site)}>{comparing?'Remove':'Compare +'}</button></div></article>})}</div></>;}
 

@@ -1,8 +1,20 @@
-import {Panel} from '../../components/ui/Panel';
+import {ArrowUpRight,Map,Orbit,RadioTower} from 'lucide-react';
+import './about.css';
 import {isMockMode} from '../../services/apiClient';
-export default function About(){return <>
- <div className="page-heading"><h2>Plan with context. Explore with confidence.</h2><p>A team-built application for NASA's Lunar Landing Site Navigator challenge.</p></div>
- <Panel title="Why the lunar south pole?"><p>Low solar angles and complex terrain make local horizons essential to power and communication assessments. This workspace brings site, time and lighting geometry into one workflow.</p></Panel>
- <Panel title="Science and data status"><p>{isMockMode?'Analysis and Comparison are in demo mode with fixed fixtures. The 3D explorer uses live SPICE geometry.':'Analysis, Comparison and the 3D explorer use NASA/JPL SPICE kernels. Changing coordinates or UTC recomputes the modeled geometry. Apollo reference coordinates are sourced from NASA; the south-pole test location is hypothetical.'}</p><p>The geometry uses a smooth lunar sphere with no atmosphere. Terrain shadows, partial-disk visibility, eclipses and radio link budgets are not modeled. The explorer also displays LOLA elevation and regional slope. Analysis slope, temperature, permanent-shadow status and suitability remain unknown.</p></Panel>
- <Panel title="Scientific resources"><ul><li><a href="https://naif.jpl.nasa.gov/">NASA/JPL NAIF SPICE</a> — local ephemerides, lunar orientation and coordinate frames.</li><li><a href="https://nssdc.gsfc.nasa.gov/planetary/lunar/lunar_sites.html">NASA Apollo landing-site coordinates</a> — historical reference locations.</li><li><a href="https://pgda.gsfc.nasa.gov/data/LOLA_5mpp/">LOLA south-pole elevation maps</a> — terrain data for future horizon modeling.</li></ul></Panel>
- </>;}
+
+const steps=[
+ {title:'Explore',body:'Look closely at the lunar south pole and its terrain.'},
+ {title:'Compare',body:'Review candidate landing areas and mission considerations.'},
+ {title:'Follow',body:'See the missions and plans shaping what comes next.'},
+];
+const sources=[
+ {title:'NASA Moon Trek',body:'Lunar maps and mission planning layers',href:'https://trek.nasa.gov/moon/'},
+ {title:'Lunar Reconnaissance Orbiter',body:'Images and data from lunar orbit',href:'https://pds-geosciences.wustl.edu/missions/lro/default.htm'},
+ {title:'JPL Horizons',body:'Solar system positions and ephemerides',href:'https://ssd.jpl.nasa.gov/horizons/'},
+];
+export default function About(){return <div className="about-page">
+ <section className="about-hero"><div className="about-hero-copy"><span className="about-kicker">THE MOONWALK PROJECT</span><h2>Explore the Moon.<br/>Understand the plan.</h2><p>Moonwalk brings lunar terrain, landing-site comparisons, and upcoming missions into one guide for exploring what comes next.</p><a className="about-explore-link" href="#about-steps">See how Moonwalk works <ArrowUpRight size={15}/></a></div><figure className="about-hero-image about-full-moon"><img src="https://assets.science.nasa.gov/dynamicimage/assets/science/cds/general/images/2024/05/christmas2015fullmoon.jpg?fit=clip&h=3240&w=3240" alt="High-resolution full-disk view of the Moon created from NASA Lunar Reconnaissance Orbiter imagery." loading="lazy" decoding="async"/><span className="about-image-label">THE MOON · LRO GLOBAL VIEW</span><figcaption>NASA Lunar Reconnaissance Orbiter · 3,240 px <a href="https://science.nasa.gov/solar-system/resources/resource-packages/earths-moon-resources/" target="_blank" rel="noreferrer" aria-label="Read NASA's source for this lunar image"><ArrowUpRight size={13}/></a></figcaption></figure></section>
+ <section className="about-guide" id="about-steps"><div className="about-guide-heading"><span className="eyebrow">A SIMPLE WORKFLOW</span><h2>From terrain to mission</h2></div><div className="about-steps" aria-label="How to use Moonwalk">{steps.map(({title,body},i)=><article key={title}><span className="about-step-number">0{i+1}</span><div><h3>{title}</h3><p>{body}</p></div></article>)}</div></section>
+ <section className="data-truth"><div className="data-truth-heading"><span className="eyebrow">A NOTE ON THE DATA</span><h2>Real lunar imagery.<br/>A planning preview.</h2></div><div className="data-truth-copy"><p>{isMockMode?'Analysis and comparison use labeled demo fixtures. The 3D explorer uses live SPICE geometry.':'Analysis, comparison and the 3D explorer use NASA/JPL SPICE kernels. Coordinates and UTC recompute modeled lighting and Earth visibility.'} Terrain layers use available lunar products. Smooth-horizon analysis does not account for local crater shadows or radio link budgets. Missing products remain explicitly unavailable.</p><div className="data-truth-tags"><span><Map size={15}/> Imagery · sourced</span><span><Orbit size={15}/> Site metrics · modeled or labeled demo</span><span><RadioTower size={15}/> SPICE geometry · connected</span></div></div></section>
+ <section className="about-sources" id="about-sources"><div className="section-heading"><div><span className="eyebrow">NASA & JPL REFERENCES</span><h2>Explore the source material</h2></div></div><div className="about-source-grid">{sources.map(source=><a className="about-source-card" key={source.title} href={source.href} target="_blank" rel="noreferrer"><span><strong>{source.title}</strong><small>{source.body}</small></span><ArrowUpRight size={17}/></a>)}</div></section>
+ </div>}

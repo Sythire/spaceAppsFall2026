@@ -74,3 +74,11 @@ These are live, not proposed. Units are km and degrees; vectors are MOON_ME, Moo
 | GET /terrain/elevation.bin | width (divides 5760) | int16 LE metres above 1737.4 km, width × width/2, row 0 = 90°N, col 0 = 180°W |
 
 Out-of-coverage times (outside 1849–2150) return HTTP 422 with the SPICE error. The 3D view is Sun-centered (ECLIPJ2000) with the camera locked on the Moon; site angles stay Moon-fixed. It uses these endpoints directly with no mock fallback. Types live in frontend/src/types/index.ts.
+
+## Terrain-aware power and communication (backend/api/horizon.py, power_comms.py)
+| Method/path | Query | Response |
+| --- | --- | --- |
+| GET /coverage/map | grid=global\|southpole, kind=power\|sunlit\|comms, mode=instant\|monthly, utc?, panelTilt (0–90°), panelHeight (m), commMask (−5–90°), commHeight (m) | CoverageMap: base64 float32 grid + layout, units, min/max, samples |
+| GET /coverage/site | lat, lon, utc?, days (≤60), stepHours, same equipment params | SiteCoverage: hourly series, horizon profile, summary (sunlit %, mean/peak W/m², kWh/m², longest dark, Earth-visible %, longest outage) |
+
+Method: terrain horizons ray-marched over the LOLA ldem_16 DEM in 48 azimuths to 270 km (curvature included), cached in `backend/cache/` (built automatically on first use: ~2 min south pole, ~5 min global). Mount height lowers the horizon by atan(h/d) at the blocking distance. Panel: tilt from the local ground plane (DEM slope), tracking Sun azimuth; incident W/m² without conversion losses. Communication: Earth centre above terrain horizon and the mask angle; line of sight only, no link budget or relays. Grids: global 0.5° equirectangular; polar stereographic 1.9 km poleward of 80°S. Monthly = one synodic month sampled every 6 h.

@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pause, Play, Moon, Sun, Crosshair, CalendarCheck } from 'lucide-react';
-import type { LunarLocation, MapLayer, SceneSeries, SiteGeometry, TerrainGrid, Vec3 } from '../../types';
-import { modelUrl, sceneService } from '../../services/sceneService';
-import { ELEVATION_STOPS, MoonScene, type ModelStatus, type ScaleMode } from './scene/MoonScene';
+import type { CoverageMap, CoverageMode, Equipment, LunarLocation, MapLayer, SceneSeries, SiteCoverage, SiteGeometry, TerrainGrid, Vec3 } from '../../types';
+import { coverageService, modelUrl, sceneService } from '../../services/sceneService';
+import { ELEVATION_STOPS, MoonScene, type CoverageLayer, type ModelStatus, type ScaleMode } from './scene/MoonScene';
+import { colorize, cssGradient, decodeF32, scaleFor, BLOCKED_COLOR } from '../../utils/coverageColors';
+import { SiteCoveragePanel } from './SiteCoveragePanel';
 import { formatCountdown, formatUtc, sampleAt } from '../../utils/sceneTime';
 
 export interface MapViewportProps {
@@ -13,7 +15,14 @@ export interface MapViewportProps {
  utc: string;
  onUtcChange: (utc: string) => void;
  markers: LunarLocation[];
+ /** Equipment assumptions for the terrain-aware power / communication layers and site statistics. */
+ equipment: Equipment;
+ coverageMode: CoverageMode;
 }
+
+const COVERAGE_KIND: Record<CoverageLayer, 'power' | 'comms'> = { power: 'power', 'earth-visibility': 'comms' };
+interface CoverageState { status: 'idle' | 'loading' | 'ready' | 'error'; error: string; meta: CoverageMap | null; }
+const IDLE: CoverageState = { status: 'idle', error: '', meta: null };
 
 const WINDOW_HOURS = 720; // 30 days ≈ one synodic month
 const STEP_HOURS = 1;
@@ -39,7 +48,7 @@ function loadPrefs(): ViewPrefs {
 }
 const initialPrefs = loadPrefs();
 
-export function MapViewport({ location, layers, onSelect, utc, onUtcChange, markers }: MapViewportProps) {
+export function MapViewport({ location, layers, onSelect, utc, onUtcChange, markers, equipment, coverageMode }: MapViewportProps) {
  const containerRef = useRef<HTMLDivElement>(null);
  const engineRef = useRef<MoonScene | null>(null);
  const markersRef = useRef(markers);
@@ -66,6 +75,8 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
  const [models, setModels] = useState<ModelStatus | null>(null);
  const [siteGeo, setSiteGeo] = useState<SiteGeometry | null>(null);
  const [siteError, setSiteError] = useState('');
+ const [coverage, setCoverage] = useState<Record<CoverageLayer, CoverageState>>({ power: IDLE, 'earth-visibility': IDLE });
+ const [siteCoverage, setSiteCoverage] = useState<{ data: SiteCoverage | null; loading: boolean; error: string }>({ data: null, loading: false, error: '' });
 
  // Engine lifecycle.
  useEffect(() => {
@@ -159,6 +170,50 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
   return () => { current = false; clearTimeout(id); };
  }, [lat, lon, viewingUtc, playing]);
 
+ // Terrain-aware coverage maps. "Now" follows the viewed time (refreshed when paused); monthly uses the scenario time.
+ const coverageTime = coverageMode === 'instant' ? viewingUtc : utc;
+ const activeCoverage = (['power', 'earth-visibility'] as CoverageLayer[]).filter(l => layers.includes(l));
+ const coverageKey = activeCoverage.join(',');
+ useEffect(() => {
+  if (!activeCoverage.length || (playing && coverageMode === 'instant')) return;
+  let current = true;
+  const id = setTimeout(() => {
+   for (const layer of activeCoverage) {
+    const kind = COVERAGE_KIND[layer];
+    setCoverage(c => ({ ...c, [layer]: { ...c[layer], status: 'loading', error: '' } }));
+    Promise.all([
+     coverageService.map('global', kind, coverageMode, coverageTime, equipment),
+     coverageService.map('southpole', kind, coverageMode, coverageTime, equipment),
+    ]).then(([g, p]) => {
+     if (!current) return;
+     const spec = scaleFor(kind, coverageMode, Math.max(g.max ?? 0, p.max ?? 0));
+     engineRef.current?.setCoverage(layer, {
+      global: { width: g.width, height: g.height, rgba: colorize(decodeF32(g.valuesF32), spec) },
+      polar: { width: p.width, height: p.height, rgba: colorize(decodeF32(p.valuesF32), spec), capLatDeg: p.polarCapLat, rhoMaxM: p.polarRhoMaxM },
+     });
+     setCoverage(c => ({ ...c, [layer]: { status: 'ready', error: '', meta: { ...g, max: Math.max(g.max ?? 0, p.max ?? 0) } } }));
+    }).catch((e: unknown) => {
+     if (current) setCoverage(c => ({ ...c, [layer]: { ...c[layer], status: 'error', error: e instanceof Error ? e.message : 'Unable to compute map' } }));
+    });
+   }
+  }, 400);
+  return () => { current = false; clearTimeout(id); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, [coverageKey, coverageMode, coverageTime, equipment, playing]);
+
+ // Site statistics: 30 days from the scenario time with the current equipment.
+ useEffect(() => {
+  if (lat === undefined || lon === undefined) { setSiteCoverage({ data: null, loading: false, error: '' }); return; }
+  let current = true;
+  setSiteCoverage(s => ({ ...s, loading: true, error: '' }));
+  const id = setTimeout(() => {
+   coverageService.site(lat, lon, utc, equipment)
+    .then(d => { if (current) setSiteCoverage({ data: d, loading: false, error: '' }); })
+    .catch((e: unknown) => { if (current) setSiteCoverage({ data: null, loading: false, error: e instanceof Error ? e.message : 'Unable to compute site statistics' }); });
+  }, 300);
+  return () => { current = false; clearTimeout(id); };
+ }, [lat, lon, utc, equipment]);
+
  const togglePlay = useCallback(() => {
   if (!playing && playhead >= WINDOW_HOURS) setPlayhead(0);
   setPlaying(p => !p);
@@ -200,7 +255,7 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
      {location && <button type="button" onClick={() => engineRef.current?.flyTo(location.latitudeDeg, location.longitudeDeg)}><Crosshair size={12} aria-hidden /> Site</button>}
     </div>
    </div>
-   {(elevationOn || illuminationOn) && <div className="layer-legends">
+   {(elevationOn || illuminationOn || activeCoverage.length > 0) && <div className="layer-legends">
     {elevationOn && <div className="layer-legend">
      <strong>Elevation (LOLA)</strong>
      {terrainState === 'loading' && <span>Loading LOLA heights…</span>}
@@ -213,6 +268,21 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
       <small>Heights relative to the 1737.4 km mean sphere · 16 px/deg (~1.9 km)</small>
      </>}
     </div>}
+    {activeCoverage.map(layer => {
+     const st = coverage[layer], kind = COVERAGE_KIND[layer];
+     const spec = scaleFor(kind, coverageMode, st.meta?.max ?? null);
+     const title = layer === 'power' ? 'Solar power (terrain-aware)' : 'Earth communication (terrain-aware)';
+     return <div className="layer-legend" key={layer}>
+      <strong>{title} · {coverageMode === 'instant' ? 'now' : 'monthly average'}</strong>
+      {st.status === 'loading' && <span>Computing… (the very first run builds the terrain-horizon cache and can take several minutes)</span>}
+      {st.status === 'error' && <span role="alert">{st.error}</span>}
+      {st.meta && <>
+       <div className="legend-bar" style={{ background: spec.blockedBelowZero ? `linear-gradient(90deg, ${BLOCKED_COLOR} 0%, ${BLOCKED_COLOR} 18%, transparent 18%), ${cssGradient(spec.stops)}` : cssGradient(spec.stops) }} />
+       <div className="legend-scale">{spec.blockedBelowZero ? <><span>Blocked</span><span>0°</span><span>≥{spec.max}°</span></> : <><span>{spec.min} {spec.unit}</span><span>{spec.max} {spec.unit}</span></>}</div>
+       <small>{st.meta.label}. {coverageMode === 'monthly' ? `${st.meta.samples} samples, every ${Math.round((Date.parse(st.meta.end) - Date.parse(st.meta.start)) / 3600000 / Math.max(1, st.meta.samples - 1))} h. ` : ''}Global {st.meta.cellKm.toFixed(0)} km cells; 1.9 km south of 80°S.{playing && coverageMode === 'instant' ? ' Updates when paused.' : ''}</small>
+      </>}
+     </div>;
+    })}
     {illuminationOn && <div className="layer-legend">
      <strong>Illumination · solar elevation</strong>
      <div className="legend-bar" style={{ background: 'linear-gradient(90deg, #0f1f6b 0%, #0f1f6b 12%, #fff1a0 12%, #fff1a0 14%, #f25914 14%, #ffc733 40%, #fffad9 100%)' }} />
@@ -280,5 +350,6 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
     {skyState === 'ready' && stars ? ' · Stars: NASA/Goddard SVS Deep Star Maps 2020 (J2000)' : ''}
    </p>
   </section>
+  {location && <SiteCoveragePanel data={siteCoverage.data} loading={siteCoverage.loading} error={siteCoverage.error} equipment={equipment} />}
  </div>;
 }

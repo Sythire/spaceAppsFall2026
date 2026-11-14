@@ -14,4 +14,5 @@ SITES += [{"id": "polar-reference", "name": "South-pole test location (hypotheti
            "coordinateNote": "User-selected test coordinates; not a NASA landing-site designation."}]
 
 LAYERS = [{"id": key, "name": name, "available": False} for key, name in (
-    ("illumination", "Illumination"), ("earth-visibility", "Earth visibility"), ("elevation", "Elevation"))]
+    ("illumination", "Illumination"), ("elevation", "Elevation"),
+    ("power", "Solar power (terrain-aware)"), ("earth-visibility", "Earth communication (terrain-aware)"))]

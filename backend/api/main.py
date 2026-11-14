@@ -13,7 +13,7 @@ from fastapi import FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from . import analysis, catalog, ephemeris, terrain
+from . import analysis, catalog, ephemeris, power_comms, terrain
 from .schemas import AnalysisRequest, ComparisonRequest
 
 MODEL_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "modelResources"))
@@ -119,7 +119,8 @@ def sites():
 
 @app.get("/api/v1/map/layers")
 def layers():
-    return [{**layer, "available": terrain.available() if layer["id"] == "elevation"
+    terrain_layers = {"elevation", "power", "earth-visibility"}  # these need the LOLA DEM
+    return [{**layer, "available": terrain.available() if layer["id"] in terrain_layers
              else layer["id"] == "illumination"} for layer in catalog.LAYERS]
 
 
@@ -162,3 +163,40 @@ def terrain_grid(width: int = Query(1440, ge=90, le=5760)):
         raise HTTPException(422, str(exc)) from exc
     return Response(content=data, media_type="application/octet-stream",
                     headers={"Cache-Control": "max-age=86400", "X-Grid-Width": str(w), "X-Grid-Height": str(h)})
+
+
+# ---------------------------------------------------------------- terrain-aware power & communication
+def _equipment(panelTilt: float, panelHeight: float, commMask: float, commHeight: float) -> power_comms.Equipment:
+    return power_comms.Equipment(panel_tilt_deg=panelTilt, panel_height_m=panelHeight,
+                                 comm_mask_deg=commMask, comm_height_m=commHeight)
+
+
+def _planning_call(fn, *args):
+    if not terrain.available():
+        raise HTTPException(404, "LOLA DEM not found: add modelResources/ldem_16_uint.tif")
+    try:
+        return _call(fn, *args)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.get("/api/v1/coverage/map")
+def coverage_map(grid: str = Query("global", pattern="^(global|southpole)$"),
+                 kind: str = Query("power", pattern="^(power|sunlit|comms)$"),
+                 mode: str = Query("instant", pattern="^(instant|monthly)$"), utc: Optional[str] = None,
+                 panelTilt: float = 0.0, panelHeight: float = 1.0, commMask: float = 0.0, commHeight: float = 1.0):
+    """Terrain-aware power / sunlight / Earth-visibility map. valuesF32 is base64 little-endian float32,
+    row-major in the grid layout described by `layout` (NaN outside the grid's valid area)."""
+    return _planning_call(power_comms.coverage_map, grid, kind, mode, _utc(utc),
+                          _equipment(panelTilt, panelHeight, commMask, commHeight))
+
+
+@app.get("/api/v1/coverage/site")
+def coverage_site(lat: float = Query(..., ge=-90, le=90), lon: float = Query(..., ge=-180, le=180), utc: Optional[str] = None,
+                  days: float = Query(30, gt=0, le=60), stepHours: float = Query(1, ge=0.25, le=24),
+                  panelTilt: float = 0.0, panelHeight: float = 1.0, commMask: float = 0.0, commHeight: float = 1.0):
+    """Hour-by-hour terrain-aware power and Earth visibility at one site with summary statistics."""
+    if days * 24 / stepHours > 6000:
+        raise HTTPException(422, "Too many samples; increase stepHours or reduce days")
+    return _planning_call(power_comms.site_series, lat, lon, _utc(utc), days, stepHours,
+                          _equipment(panelTilt, panelHeight, commMask, commHeight))

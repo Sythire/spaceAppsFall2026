@@ -158,3 +158,6 @@ modelResources/Moon_NASA_LRO_8k_Topo.glb
 modelResources/Moon_NASA_LRO_15k_Grid.usdz
 modelResources/Moon_NASA_LRO_23k_Flat.usdz
 modelResources/Sun_1_1391000.usdz
+
+# Derived terrain-horizon tables (rebuilt automatically from the DEM)
+backend/cache/

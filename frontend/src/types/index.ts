@@ -7,7 +7,7 @@ export interface TerrainData { slopeDeg: number | null; temperatureK: number | n
 export interface TimelinePoint { hour: number; sunlightPercent: number; earthVisibilityPercent: number; utc?: string; sun?: HorizonSample; earth?: HorizonSample; solarFluxWm2?: number; horizontalIrradianceWm2?: number; }
 export interface AnalysisResult { request: AnalysisRequest; mode: 'simulated' | 'modeled' | 'verified'; source: string; sun: SunPosition; earth: EarthPosition; illumination: IlluminationData; earthVisibilityPercent: number; terrain: TerrainData; suitability: string | null; earthVisibility?: VisibilitySummary; interval?: AnalysisInterval; metadata?: AnalysisMetadata; }
 export interface LandingSiteComparison { results: AnalysisResult[]; }
-export type MapLayer = 'illumination' | 'earth-visibility' | 'elevation';
+export type MapLayer = 'illumination' | 'earth-visibility' | 'elevation' | 'power';
 export interface MapLayerDefinition { id: MapLayer; name: string; available: boolean; }
 export interface Recommendation { location: LunarLocation; reason: string; mode: 'simulated' | 'verified'; }
 
@@ -49,3 +49,22 @@ export interface VisibilitySummary { aboveHorizonHours: number; belowHorizonHour
 export interface AnalysisInterval { startUtc: string; endUtc: string; durationHours: number; elapsedHours: number; stepHours: number; sampleCount: number; }
 export interface KernelProvenance { provider: string; kernels: {file: string; url: string; sha256: string; bytes: number}[]; frame: 'MOON_ME'; frameRealization: string; aberrationCorrection: string; toolkitVersion: string; spiceypyVersion: string; coverage: {startUtc: string; endUtc: string}[]; coverageNote: string; retrievedAtUtc: string | null; retrievalNote: string; }
 export interface AnalysisMetadata { generatedAtUtc: string; provenance: KernelProvenance; horizonMethod: string; azimuthConvention: string; angleUnits: string; distanceUnits: string; timeScale: string; eventScanStepHours: number; eventRefinementSeconds: number; uncertaintyDeg: number | null; limitations: string[]; }
+
+/** Equipment assumptions for terrain-aware power and communication maps. */
+export interface Equipment { panelTiltDeg: number; panelHeightM: number; commMaskDeg: number; commHeightM: number; }
+export type CoverageKind = 'power' | 'sunlit' | 'comms';
+export type CoverageMode = 'instant' | 'monthly';
+export type CoverageGrid = 'global' | 'southpole';
+/** valuesF32: base64 little-endian float32, row-major (row 0 = north edge for global, y = -ρmax for southpole). NaN = no data. */
+export interface CoverageMap {
+ grid: CoverageGrid; kind: CoverageKind; mode: CoverageMode; units: string; label: string;
+ width: number; height: number; layout: string; cellKm: number; polarCapLat: number; polarRhoMaxM: number;
+ start: string; end: string; samples: number; min: number | null; max: number | null; valuesF32: string; method: string;
+}
+export interface SiteCoverage {
+ location: { latitudeDeg: number; longitudeDeg: number; frame: 'MOON_ME' };
+ stepHours: number; method: string; slopeDeg: number;
+ horizonProfile: { azimuthDeg: number[]; panelDeg: number[]; commDeg: number[] };
+ series: { utc: string[]; sunElevationDeg: number[]; sunHorizonDeg: number[]; powerWm2: number[]; earthElevationDeg: number[]; earthLimitDeg: number[]; earthVisible: boolean[]; sunlit: boolean[] };
+ summary: { sunlitPct: number; meanPowerWm2: number; peakPowerWm2: number; energyKWhPerM2: number; longestDarkHours: number; earthVisiblePct: number; longestCommOutageHours: number };
+}

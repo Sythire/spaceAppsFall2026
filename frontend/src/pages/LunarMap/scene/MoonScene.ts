@@ -106,6 +106,44 @@ const ILLUMINATION_FRAGMENT = [
  '}',
 ].join('\n');
 
+/**
+ * Coverage overlay: colours each fragment from a pre-coloured equirectangular global texture
+ * (row 0 = north) and, poleward of uCapLat, from a polar-stereographic south-pole texture.
+ * Lat/lon come from the fragment's direction, so it works on both the plain sphere and raised terrain.
+ */
+const COVERAGE_FRAGMENT = [
+ '#include <logdepthbuf_pars_fragment>',
+ 'uniform sampler2D uGlobal;',
+ 'uniform sampler2D uPolar;',
+ 'uniform float uHasPolar;',
+ 'uniform float uCapLat;',
+ 'uniform float uRhoMax;',
+ 'varying vec3 vDir;',
+ 'void main() {',
+ ' #include <logdepthbuf_fragment>',
+ ' vec3 d = normalize(vDir);',
+ ' float lat = asin(clamp(d.y, -1.0, 1.0));',
+ ' float lon = atan(-d.z, d.x);',
+ ' vec4 c;',
+ ' if (uHasPolar > 0.5 && lat < uCapLat) {',
+ '  float rho = 2.0 * tan((1.5707963 + lat) * 0.5);',
+ '  vec2 uv = vec2(rho * cos(lon), rho * sin(lon)) / uRhoMax * 0.5 + 0.5;',
+ '  c = texture2D(uPolar, uv);',
+ ' } else {',
+ '  c = texture2D(uGlobal, vec2(lon / 6.2831853 + 0.5, 0.5 - lat / 3.1415927));',
+ ' }',
+ ' if (c.a < 0.01) discard;',
+ ' gl_FragColor = c;',
+ '}',
+].join('\n');
+
+export type CoverageLayer = 'power' | 'earth-visibility';
+/** Pre-coloured RGBA grids for one coverage layer. */
+export interface CoverageTextures {
+ global: { width: number; height: number; rgba: Uint8Array } | null;
+ polar: { width: number; height: number; rgba: Uint8Array; capLatDeg: number; rhoMaxM: number } | null;
+}
+
 export interface SceneMarker { id: string; name: string; latitudeDeg: number; longitudeDeg: number; }
 export interface SceneOptions { grid: boolean; paths: boolean; labels: boolean; scale: ScaleMode; stars: boolean; }
 
@@ -173,6 +211,7 @@ export class MoonScene {
  private terrainHeights: Float32Array | null = null;
  private moonTexture: THREE.Texture | null = null;
  private sphereGeometry: THREE.BufferGeometry = new THREE.SphereGeometry(1, 256, 128);
+ private coverage: Partial<Record<CoverageLayer, THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>>> = {};
  private illumination: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial> = new THREE.Mesh(this.sphereGeometry, new THREE.ShaderMaterial({
   uniforms: { uSun: { value: new THREE.Vector3(1, 0, 0) }, uLift: { value: 0.0015 } },
   vertexShader: ILLUMINATION_VERTEX, fragmentShader: ILLUMINATION_FRAGMENT,
@@ -234,6 +273,17 @@ export class MoonScene {
   this.illumination.visible = false;
   this.illumination.renderOrder = 2;
   this.moonFrame.add(this.illumination);
+  for (const [layer, lift] of [['power', 0.0011], ['earth-visibility', 0.0019]] as const) {
+   const mesh = new THREE.Mesh(this.sphereGeometry, new THREE.ShaderMaterial({
+    uniforms: { uGlobal: { value: null }, uPolar: { value: null }, uHasPolar: { value: 0 }, uCapLat: { value: -Math.PI / 2 },
+     uRhoMax: { value: 1 }, uLift: { value: lift } },
+    vertexShader: ILLUMINATION_VERTEX, fragmentShader: COVERAGE_FRAGMENT, transparent: true, depthWrite: false,
+   }));
+   mesh.visible = false;
+   mesh.renderOrder = 1;
+   this.coverage[layer] = mesh;
+   this.moonFrame.add(mesh);
+  }
 
   const el = this.renderer.domElement;
   el.addEventListener('pointerdown', this.handleDown);
@@ -472,6 +522,34 @@ export class MoonScene {
   this.refreshSurfaceObjects();
  }
 
+ /** Replace a coverage layer's colours (null clears it). */
+ setCoverage(layer: CoverageLayer, tex: CoverageTextures | null) {
+  const mesh = this.coverage[layer];
+  if (!mesh) return;
+  const u = mesh.material.uniforms;
+  for (const key of ['uGlobal', 'uPolar'] as const) { (u[key].value as THREE.Texture | null)?.dispose(); u[key].value = null; }
+  u.uHasPolar.value = 0;
+  if (tex?.global) u.uGlobal.value = this.dataTexture(tex.global.rgba, tex.global.width, tex.global.height, THREE.RepeatWrapping);
+  if (tex?.polar) {
+   u.uPolar.value = this.dataTexture(tex.polar.rgba, tex.polar.width, tex.polar.height, THREE.ClampToEdgeWrapping);
+   u.uHasPolar.value = 1;
+   u.uCapLat.value = THREE.MathUtils.degToRad(tex.polar.capLatDeg);
+   u.uRhoMax.value = tex.polar.rhoMaxM / (MOON_RADIUS_KM * 1000);
+  }
+  this.applyLayers();
+ }
+
+ private dataTexture(rgba: Uint8Array, w: number, h: number, wrapS: THREE.Wrapping): THREE.DataTexture {
+  const t = new THREE.DataTexture(rgba, w, h, THREE.RGBAFormat);
+  t.wrapS = wrapS;
+  t.wrapT = THREE.ClampToEdgeWrapping;
+  t.magFilter = THREE.LinearFilter;
+  t.minFilter = THREE.LinearFilter;
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.needsUpdate = true;
+  return t;
+ }
+
  private get elevationOn() { return this.layers.includes('elevation') && this.terrain !== null; }
 
  private applyLayers() {
@@ -484,6 +562,11 @@ export class MoonScene {
   for (const child of this.moon.children) child.visible = elev ? child === this.terrainMesh : child !== this.terrainMesh;
   this.illumination.visible = this.layers.includes('illumination');
   this.illumination.geometry = elev && this.terrainMesh ? this.terrainMesh.geometry : this.sphereGeometry;
+  for (const [layer, mesh] of Object.entries(this.coverage) as [CoverageLayer, THREE.Mesh][]) {
+   const u = (mesh.material as THREE.ShaderMaterial).uniforms;
+   mesh.visible = this.layers.includes(layer) && (u.uGlobal.value !== null || u.uHasPolar.value > 0.5);
+   mesh.geometry = this.illumination.geometry;
+  }
   this.refreshSurfaceObjects();
  }
 

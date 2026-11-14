@@ -3,6 +3,18 @@
 FastAPI + SpiceyPy service that computes Sun, Earth and Mars geometry in the Moon-fixed **MOON_ME** frame (Moon center origin, km) and site-relative Sun/Earth elevation, azimuth and rise/set times. It also serves the GLB models in `../modelResources` at `/models`.
 
 ## Run
+On Windows, from the repository root, use an isolated environment:
+```powershell
+python -m venv backend\.venv
+backend\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
+cd backend
+.\.venv\Scripts\python.exe -m uvicorn api.main:app --host 127.0.0.1 --port 8000
+```
+In a second terminal at the repository root, create `frontend/.env.local` from
+`frontend/.env.example` if missing, then run `npm run dev`. Keep both servers
+running. The explorer always uses live SPICE geometry even while other pages
+use mock data. Check http://127.0.0.1:8000/api/v1/health if it cannot connect.
+
 ```bash
 pip install -r requirements.txt
 python -m uvicorn api.main:app --host 127.0.0.1 --port 8000

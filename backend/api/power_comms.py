@@ -7,7 +7,8 @@ local elevation/azimuth, and compared with the cell's terrain horizon in that di
 Solar panel model: the panel sits on the local ground (DEM slope included), is tilted up by `panel_tilt_deg`
 from the ground plane, and turns to face the Sun's direction (azimuth tracking). Power is incident solar
 flux on the panel (W/m²): total solar irradiance scaled to the actual Sun distance × cos(incidence), zero
-when the Sun's centre is below the terrain horizon. No conversion efficiency is applied.
+when the Sun's centre is below the terrain horizon. Electrical output = incident × panel efficiency
+(default 30%, typical of space-grade triple-junction cells; set your own value).
 
 Communication model: Earth is "visible" when its centre is above both the terrain horizon (for a receiver
 `comm_height_m` above the ground) and the mask angle `comm_mask_deg`. Margin = elevation − that limit.
@@ -46,8 +47,11 @@ class Equipment:
     panel_height_m: float = 1.0
     comm_mask_deg: float = 0.0
     comm_height_m: float = 1.0
+    panel_efficiency_pct: float = 30.0
 
     def validate(self) -> None:
+        if not 1 <= self.panel_efficiency_pct <= 100:
+            raise ValueError("panel efficiency must be 1–100%")
         if not 0 <= self.panel_tilt_deg <= 90:
             raise ValueError("panel tilt must be 0–90°")
         if not -5 <= self.comm_mask_deg <= 90:
@@ -105,7 +109,8 @@ def evaluate(grid: horizon.Grid, sun_km: np.ndarray, earth_km: np.ndarray, eq: E
         sunlit = sun_el > sun_hz
         flux = SOLAR_CONSTANT * (AU_KM / sun_d) ** 2
         power = np.where(sunlit, flux * np.clip(_panel_cos(grid.normal, sun_dir, eq.panel_tilt_deg), 0, 1), 0.0)
-        out.update(sun_el=sun_el, sun_az=sun_az, sun_hz=sun_hz, sunlit=sunlit, power=power)
+        out.update(sun_el=sun_el, sun_az=sun_az, sun_hz=sun_hz, sunlit=sunlit, power=power,
+                   electrical=power * (eq.panel_efficiency_pct / 100.0))
     if "earth" in need:
         earth_el, earth_az, _, _ = _local(earth_km, up, east, north)
         earth_hz = horizon.horizon_elevation(grid, earth_az, eq.comm_height_m)
@@ -138,7 +143,8 @@ def _longest_run(flags: np.ndarray, step_h: float) -> float:
 
 # ---------------------------------------------------------------- maps
 KINDS = {
-    "power": {"instant": ("W/m²", "Incident solar power on the panel"), "monthly": ("W/m²", "Mean incident solar power over one lunar month")},
+    "power": {"instant": ("W/m²", "Electrical output per m² of panel (incident × efficiency)"),
+              "monthly": ("W/m²", "Mean electrical output per m² of panel over one lunar month")},
     "sunlit": {"instant": ("bool", "Sun above terrain horizon (1) or not (0)"), "monthly": ("%", "Share of the lunar month in sunlight")},
     "comms": {"instant": ("deg", "Earth elevation margin above terrain and mask (≥0 = visible)"), "monthly": ("%", "Share of the lunar month with Earth in view")},
 }
@@ -161,14 +167,14 @@ def coverage_map(grid_name: str, kind: str, mode: str, start: datetime, eq: Equi
     if mode == "instant":
         times, sun, earth = _vectors(start, 0, 1)
         r = evaluate(grid, sun[0], earth[0], eq, basis, need)
-        values = r["margin"] if kind == "comms" else r["power"] if kind == "power" else r["sunlit"].astype(np.float32)
+        values = r["margin"] if kind == "comms" else r["electrical"] if kind == "power" else r["sunlit"].astype(np.float32)
     else:
         hours = SYNODIC_DAYS * 24
         times, sun, earth = _vectors(start, hours, MONTHLY_STEP_H)
         acc = np.zeros(grid.lat.size, np.float64)
         for i in range(len(times)):
             r = evaluate(grid, sun[i], earth[i], eq, basis, need)
-            acc += r["visible"] if kind == "comms" else r["power"] if kind == "power" else r["sunlit"]
+            acc += r["visible"] if kind == "comms" else r["electrical"] if kind == "power" else r["sunlit"]
         values = acc / len(times)
         if kind != "power":
             values = values * 100
@@ -206,6 +212,7 @@ def site_series(lat: float, lon: float, start: datetime, days: float, step_h: fl
     rows = [evaluate(point, sun[i], earth[i], eq, basis) for i in range(len(times))]
     col = lambda k: np.array([float(r[k][0]) for r in rows])
     sunlit, visible, power = col("sunlit") > 0.5, col("visible") > 0.5, col("power")
+    electrical = power * (eq.panel_efficiency_pct / 100.0)
     profile_az = np.arange(horizon.N_AZ) * 360 / horizon.N_AZ
     return {
         "location": {"latitudeDeg": lat, "longitudeDeg": lon, "frame": "MOON_ME"},
@@ -215,13 +222,17 @@ def site_series(lat: float, lon: float, start: datetime, days: float, step_h: fl
                            "panelDeg": horizon.horizon_elevation(point, profile_az, eq.panel_height_m, np.zeros(horizon.N_AZ, int)).tolist(),
                            "commDeg": horizon.horizon_elevation(point, profile_az, eq.comm_height_m, np.zeros(horizon.N_AZ, int)).tolist()},
         "series": {"utc": times, "sunElevationDeg": col("sun_el").tolist(), "sunHorizonDeg": col("sun_hz").tolist(),
-                   "powerWm2": power.tolist(), "earthElevationDeg": col("earth_el").tolist(),
+                   "powerWm2": power.tolist(), "electricalWm2": electrical.tolist(), "earthElevationDeg": col("earth_el").tolist(),
                    "earthLimitDeg": np.maximum(col("earth_hz"), eq.comm_mask_deg).tolist(), "earthVisible": visible.tolist(),
                    "sunlit": sunlit.tolist()},
         "summary": {
             "sunlitPct": float(sunlit.mean() * 100), "meanPowerWm2": float(power.mean()), "peakPowerWm2": float(power.max()),
             "energyKWhPerM2": float(power.sum() * step_h / 1000),
-            "longestDarkHours": _longest_run(~sunlit, step_h), "earthVisiblePct": float(visible.mean() * 100),
+            "panelEfficiencyPct": eq.panel_efficiency_pct,
+            "meanElectricalWm2": float(electrical.mean()), "peakElectricalWm2": float(electrical.max()),
+            "electricalKWhPerM2": float(electrical.sum() * step_h / 1000),
+            "longestDarkHours": _longest_run(~sunlit, step_h),
+            "longestSunlitHours": _longest_run(sunlit, step_h), "earthVisiblePct": float(visible.mean() * 100),
             "longestCommOutageHours": _longest_run(~visible, step_h),
         },
     }

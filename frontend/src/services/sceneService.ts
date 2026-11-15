@@ -38,7 +38,7 @@ async function slowGet<T>(path: string): Promise<T> {
  return response.json() as Promise<T>;
 }
 
-const equipmentQuery = (e: Equipment) => ({ panelTilt: e.panelTiltDeg, panelHeight: e.panelHeightM, commMask: e.commMaskDeg, commHeight: e.commHeightM });
+const equipmentQuery = (e: Equipment) => ({ panelTilt: e.panelTiltDeg, panelHeight: e.panelHeightM, commMask: e.commMaskDeg, commHeight: e.commHeightM, panelEfficiency: e.panelEfficiencyPct });
 
 export const coverageService = {
  map: (grid: CoverageGrid, kind: CoverageKind, mode: CoverageMode, utc: string, e: Equipment): Promise<CoverageMap> =>

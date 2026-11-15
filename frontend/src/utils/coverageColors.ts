@@ -11,9 +11,10 @@ export const MARGIN_FULL_DEG = 30;
 
 export interface ScaleSpec { stops: Stops; min: number; max: number; unit: string; blockedBelowZero: boolean; }
 
-/** Value range and colours for a map. Power uses the panel's physical range so maps are comparable. */
-export function scaleFor(kind: CoverageKind, mode: CoverageMode, dataMax: number | null): ScaleSpec {
- if (kind === 'power') return { stops: POWER_STOPS, min: 0, max: mode === 'instant' ? 1400 : Math.max(50, Math.ceil((dataMax ?? 0) / 50) * 50), unit: 'W/m²', blockedBelowZero: false };
+/** Value range and colours for a map. Power (electrical, W/m² of panel) uses the panel's physical range now
+ *  (~1400 W/m² sunlight × efficiency) so maps are comparable; monthly uses the data's range. */
+export function scaleFor(kind: CoverageKind, mode: CoverageMode, dataMax: number | null, panelEfficiencyPct = 100): ScaleSpec {
+ if (kind === 'power') return { stops: POWER_STOPS, min: 0, max: mode === 'instant' ? Math.max(10, Math.round(1400 * panelEfficiencyPct / 100 / 10) * 10) : Math.max(10, Math.ceil((dataMax ?? 0) / 10) * 10), unit: 'W/m²', blockedBelowZero: false };
  if (kind === 'comms' && mode === 'instant') return { stops: MARGIN_STOPS, min: 0, max: MARGIN_FULL_DEG, unit: '° margin', blockedBelowZero: true };
  return { stops: PERCENT_STOPS, min: 0, max: 100, unit: '%', blockedBelowZero: false };
 }

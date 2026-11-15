@@ -66,3 +66,28 @@ code{font-size:11px;background:#0a131e;padding:1px 5px;border-radius:3px;color:#
 .collapsible-toggle .chevron{margin-left:auto;transition:transform .15s}.collapsible-toggle .chevron.open{transform:rotate(180deg)}
 .collapsible-summary{margin:4px 2px 0}
 #explorer-site-list .site-list{max-height:320px;overflow:auto;padding-right:2px}
+/* Equipment bar under the 3D view */
+.equipment-bar{margin:0;padding:14px 18px;display:grid;grid-template-columns:minmax(180px,240px) repeat(5,minmax(110px,1fr)) auto;gap:10px 14px;align-items:end;border-top:0}
+.equipment-bar .equipment-head h3{margin:0 0 4px;font-size:14px}.equipment-bar .equipment-head p{margin:0;font-size:10px}
+.equipment-bar label{margin:0!important;font-size:10px}.equipment-bar label input{margin-top:4px}.equipment-bar label small{display:none}
+.equipment-bar .button-row{align-self:end}.equipment-bar [role=alert]{grid-column:1/-1;margin:0}.equipment-bar [role=alert]:empty{display:none}
+.equipment-bar .mode-switch{grid-column:1/-1;display:flex;gap:16px;align-items:center;margin:0;padding:4px 10px}.equipment-bar .mode-switch legend{float:left;padding:0 8px 0 0}
+@media(max-width:1350px){.equipment-bar{grid-template-columns:repeat(3,minmax(0,1fr))}.equipment-bar .equipment-head{grid-column:1/-1}}
+@media(max-width:760px){.equipment-bar{grid-template-columns:1fr 1fr}}
+/* Mission-type grading */
+.mission-bar{margin:0;padding:14px 18px}.mission-bar fieldset{border:0;padding:0;margin:0}.mission-bar legend{font-size:14px;font-weight:600;margin-bottom:8px}
+.mission-options{display:flex;flex-wrap:wrap;gap:6px 18px}.mission-options .checkbox{margin:0;font-size:12px}
+.mission-detail{margin-top:10px}.mission-criteria{margin:6px 0;padding-left:18px;font-size:11px}.mission-criteria li{margin-bottom:4px}
+.grade-key{display:inline-flex;gap:6px;flex-wrap:wrap;margin-left:6px}
+.grade{display:inline-block;margin:6px 6px 0 0;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;border:1px solid transparent}
+.grade-good{background:#1f7a4d22;color:#2fbf71;border-color:#2fbf7166}.grade-edge{background:#c9a22722;color:#e0b43a;border-color:#e0b43a66}
+.grade-bad{background:#b3261e22;color:#e5534b;border-color:#e5534b66}
+.grade-unknown{background:#00000014;color:#111;border-color:#111}.grade-irrelevant{background:#8a94a022;color:#8a94a0;border-color:#8a94a055}
+body.dark-mode .grade-unknown{color:#e6e6e6;background:#000;border-color:#000;box-shadow:0 0 0 1px #ffffff55}
+.metric.graded-good{border-color:#2fbf71!important;box-shadow:inset 3px 0 0 #2fbf71}.metric.graded-edge{border-color:#e0b43a!important;box-shadow:inset 3px 0 0 #e0b43a}
+.metric.graded-bad{border-color:#e5534b!important;box-shadow:inset 3px 0 0 #e5534b}
+
+/* Not graded (relevant, no data) = black; not relevant to this mission = grey */
+.metric.graded-unknown{border:2px solid #000!important;box-shadow:inset 3px 0 0 #000}
+.metric.graded-irrelevant{border-color:#9aa3ad!important;box-shadow:none;opacity:.85}
+body.dark-mode .metric.graded-unknown{box-shadow:inset 3px 0 0 #000,0 0 0 1px #ffffff40}

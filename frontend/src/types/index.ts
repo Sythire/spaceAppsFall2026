@@ -54,7 +54,7 @@ export interface KernelProvenance { provider: string; kernels: {file: string; ur
 export interface AnalysisMetadata { generatedAtUtc: string; provenance: KernelProvenance; horizonMethod: string; azimuthConvention: string; angleUnits: string; distanceUnits: string; timeScale: string; eventScanStepHours: number; eventRefinementSeconds: number; uncertaintyDeg: number | null; limitations: string[]; }
 
 /** Equipment assumptions for terrain-aware power and communication maps. */
-export interface Equipment { panelTiltDeg: number; panelHeightM: number; commMaskDeg: number; commHeightM: number; }
+export interface Equipment { panelTiltDeg: number; panelHeightM: number; commMaskDeg: number; commHeightM: number; panelEfficiencyPct: number; }
 export type CoverageKind = 'power' | 'sunlit' | 'comms';
 export type CoverageMode = 'instant' | 'monthly';
 export type CoverageGrid = 'global' | 'southpole';
@@ -68,8 +68,8 @@ export interface SiteCoverage {
  location: { latitudeDeg: number; longitudeDeg: number; frame: 'MOON_ME' };
  stepHours: number; method: string; slopeDeg: number;
  horizonProfile: { azimuthDeg: number[]; panelDeg: number[]; commDeg: number[] };
- series: { utc: string[]; sunElevationDeg: number[]; sunHorizonDeg: number[]; powerWm2: number[]; earthElevationDeg: number[]; earthLimitDeg: number[]; earthVisible: boolean[]; sunlit: boolean[] };
- summary: { sunlitPct: number; meanPowerWm2: number; peakPowerWm2: number; energyKWhPerM2: number; longestDarkHours: number; earthVisiblePct: number; longestCommOutageHours: number };
+ series: { utc: string[]; sunElevationDeg: number[]; sunHorizonDeg: number[]; powerWm2: number[]; electricalWm2: number[]; earthElevationDeg: number[]; earthLimitDeg: number[]; earthVisible: boolean[]; sunlit: boolean[] };
+ summary: { sunlitPct: number; meanPowerWm2: number; peakPowerWm2: number; energyKWhPerM2: number; panelEfficiencyPct: number; meanElectricalWm2: number; peakElectricalWm2: number; electricalKWhPerM2: number; longestDarkHours: number; longestSunlitHours: number; earthVisiblePct: number; longestCommOutageHours: number };
 }
 
 /** Terrain-aware rise/set events (real skyline + receiver mask). */

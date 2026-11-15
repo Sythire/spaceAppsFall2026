@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Pause, Play, Moon, Sun, Crosshair, CalendarCheck } from 'lucide-react';
 import type { CoverageMap, CoverageMode, Equipment, LunarLocation, MapLayer, PsrMap, SceneSeries, SiteCoverage, SiteGeometry, TerrainEvents, TerrainGrid, ThermalMap, ThermalProduct, Vec3 } from '../../types';
 import { coverageService, modelUrl, sceneService } from '../../services/sceneService';
 import { ELEVATION_STOPS, MARKER_COLORS, MoonScene, type ModelStatus, type ScaleMode } from './scene/MoonScene';
 import { colorize, cssGradient, decodeF32, psrRgba, scaleFor, thermalSpec, BLOCKED_COLOR, PSR_COLOR, THERMAL_MAX_K, THERMAL_MIN_K } from '../../utils/coverageColors';
 import { SiteCoveragePanel } from './SiteCoveragePanel';
+import { GradeBadge, MissionBar, profileById } from './MissionBar';
+import { gradeClass, gradeMetric } from '../../utils/missionProfiles';
 import { formatCountdown, formatUtc, sampleAt } from '../../utils/sceneTime';
 
 export interface MapViewportProps {
@@ -18,6 +20,8 @@ export interface MapViewportProps {
  /** Equipment assumptions for the terrain-aware power / communication layers and site statistics. */
  equipment: Equipment;
  coverageMode: CoverageMode;
+ /** Equipment inputs, shown as a bar directly under the 3D view. */
+ equipmentBar?: ReactNode;
 }
 
 type TerrainLayer = 'power' | 'earth-visibility';
@@ -41,8 +45,8 @@ const deg = (v: number) => v.toFixed(2) + '°';
 
 /** View settings remembered across reloads in this browser (falls back to defaults if storage is blocked). */
 const PREFS_KEY = 'lunarsite.explorer.prefs.v1';
-interface ViewPrefs { scale: ScaleMode; grid: boolean; paths: boolean; labels: boolean; stars: boolean; speed: number; exaggeration: number; }
-const DEFAULT_PREFS: ViewPrefs = { scale: 'compact', grid: false, paths: true, labels: true, stars: true, speed: 6, exaggeration: 5 };
+interface ViewPrefs { scale: ScaleMode; grid: boolean; paths: boolean; labels: boolean; stars: boolean; speed: number; exaggeration: number; mission: string; }
+const DEFAULT_PREFS: ViewPrefs = { scale: 'compact', grid: false, paths: true, labels: true, stars: true, speed: 6, exaggeration: 5, mission: '' };
 const EXAGGERATIONS = [1, 2, 5, 10, 20];
 function loadPrefs(): ViewPrefs {
  try { return { ...DEFAULT_PREFS, ...(JSON.parse(localStorage.getItem(PREFS_KEY) ?? '{}') as Partial<ViewPrefs>) }; }
@@ -50,7 +54,7 @@ function loadPrefs(): ViewPrefs {
 }
 const initialPrefs = loadPrefs();
 
-export function MapViewport({ location, layers, onSelect, utc, onUtcChange, markers, equipment, coverageMode }: MapViewportProps) {
+export function MapViewport({ location, layers, onSelect, utc, onUtcChange, markers, equipment, coverageMode, equipmentBar }: MapViewportProps) {
  const containerRef = useRef<HTMLDivElement>(null);
  const engineRef = useRef<MoonScene | null>(null);
  const markersRef = useRef(markers);
@@ -70,6 +74,8 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
  const [stars, setStars] = useState(initialPrefs.stars);
  const [skyState, setSkyState] = useState<'none' | 'loading' | 'ready' | 'error'>('none');
  const [exaggeration, setExaggeration] = useState(initialPrefs.exaggeration);
+ const [mission, setMission] = useState(initialPrefs.mission);
+ const profile = profileById(mission);
  const [terrain, setTerrain] = useState<TerrainGrid | null>(null);
  const [terrainState, setTerrainState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
  const elevationOn = layers.includes('elevation');
@@ -131,8 +137,8 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
  useEffect(() => { if (sample) engineRef.current?.setSample(sample); }, [sample]);
  useEffect(() => { engineRef.current?.setOptions({ scale, grid, paths, labels, stars }); }, [scale, grid, paths, labels, stars]);
  useEffect(() => {
-  try { localStorage.setItem(PREFS_KEY, JSON.stringify({ scale, grid, paths, labels, stars, speed, exaggeration })); } catch { /* storage unavailable */ }
- }, [scale, grid, paths, labels, stars, speed, exaggeration]);
+  try { localStorage.setItem(PREFS_KEY, JSON.stringify({ scale, grid, paths, labels, stars, speed, exaggeration, mission })); } catch { /* storage unavailable */ }
+ }, [scale, grid, paths, labels, stars, speed, exaggeration, mission]);
 
  // Data layers. The LOLA grid is fetched once, the first time Elevation is switched on.
  useEffect(() => {
@@ -193,7 +199,7 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
      coverageService.map('southpole', kind, coverageMode, coverageTime, equipment),
     ]).then(([g, p]) => {
      if (!current) return;
-     const spec = scaleFor(kind, coverageMode, Math.max(g.max ?? 0, p.max ?? 0));
+     const spec = scaleFor(kind, coverageMode, Math.max(g.max ?? 0, p.max ?? 0), equipment.panelEfficiencyPct);
      engineRef.current?.setCoverage(layer, {
       global: { width: g.width, height: g.height, rgba: colorize(decodeF32(g.valuesF32), spec) },
       polar: { width: p.width, height: p.height, rgba: colorize(decodeF32(p.valuesF32), spec), capLatDeg: p.polarCapLat, rhoMaxM: p.polarRhoMaxM },
@@ -318,8 +324,8 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
     </div>}
     {activeCoverage.map(layer => {
      const st = coverage[layer], kind = COVERAGE_KIND[layer];
-     const spec = scaleFor(kind, coverageMode, st.meta?.max ?? null);
-     const title = layer === 'power' ? 'Solar power (terrain-aware)' : 'Earth communication (terrain-aware)';
+     const spec = scaleFor(kind, coverageMode, st.meta?.max ?? null, equipment.panelEfficiencyPct);
+     const title = layer === 'power' ? `Solar power · electrical at ${equipment.panelEfficiencyPct}% efficiency` : 'Earth communication (terrain-aware)';
      return <div className="layer-legend" key={layer}>
       <strong>{title} · {coverageMode === 'instant' ? 'now' : 'monthly average'}</strong>
       {st.status === 'loading' && <span>Computing… (the very first run builds the terrain-horizon cache and can take several minutes)</span>}
@@ -384,35 +390,39 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
     <CalendarCheck size={12} aria-hidden /> Set as scenario time</button>
   </section>
 
+  {equipmentBar}
+
+  <MissionBar value={mission} onChange={setMission} />
+
   <section className="panel scene-readout" aria-live="polite">
    <div className="scene-readout-head">
     <h2>{location ? location.name : 'No site selected'}</h2>
     <span className="muted">{location ? fmtLatLon(location.latitudeDeg, location.longitudeDeg) + ' · MOON_ME' : 'Click the Moon, a site ping, or enter coordinates.'}</span>
    </div>
    <div className="readout-grid">
-    <article className="metric metric-sun"><span>Solar elevation</span>
+    <article className={'metric metric-sun' + gradeClass(profile)}><span>Solar elevation</span>
      <strong>{sunAngles ? deg(sunAngles.elevationDeg) : '—'}</strong>
      <small>{sunAngles ? 'Azimuth ' + deg(sunAngles.azimuthDeg) + ' · ' : ''}{location ? event('sun', ['sunset', 'sunrise']) : 'Select a site'}</small>
      {location && terrainEvent('sun', ['sunset', 'sunrise']) && <small className="terrain-event">{terrainEvent('sun', ['sunset', 'sunrise'])}</small>}</article>
-    <article className="metric metric-earth"><span>Earth elevation</span>
+    <article className={'metric metric-earth' + gradeClass(profile)}><span>Earth elevation</span>
      <strong>{earthAngles ? deg(earthAngles.elevationDeg) : '—'}</strong>
      <small>{earthAngles ? 'Azimuth ' + deg(earthAngles.azimuthDeg) + ' · ' : ''}{location ? event('earth', ['Earthset', 'Earthrise']) : 'Select a site'}</small>
      {location && terrainEvent('earth', ['Earthset', 'Earthrise']) && <small className="terrain-event">{terrainEvent('earth', ['Earthset', 'Earthrise'])}</small>}</article>
-    <article className="metric"><span>Ideal horizontal panel</span>
+    <article className={'metric' + gradeClass(profile)}><span>Ideal horizontal panel</span>
      <strong>{siteGeo && !playing ? siteGeo.power.horizontalPanelWm2.toFixed(0) + ' W/m²' : '—'}</strong>
      <small>{siteGeo ? `Solar flux ${siteGeo.power.solarFluxWm2.toFixed(0)} W/m² · ${siteGeo.power.assumptions}` : 'Needs a selected site'}</small></article>
-    <article className="metric"><span>Sub-solar · sub-Earth point</span>
+    <article className={'metric' + gradeClass(profile)}><span>Sub-solar · sub-Earth point</span>
      <strong className="small-strong">{subSolar ? fmtLatLon(subSolar.lat, subSolar.lon) : '—'}</strong>
      <small>Sub-Earth {subEarth ? fmtLatLon(subEarth.lat, subEarth.lon) : '—'} · offset from 0°,0° is libration</small></article>
-    <article className={'metric' + (siteGeo?.terrain ? '' : ' metric-unavailable')}><span>Terrain · LOLA</span>
+    <article className={'metric' + gradeClass(profile, gradeMetric(profile, 'slope', siteGeo?.terrain?.regionalSlopeDeg).grade) + (siteGeo?.terrain ? '' : ' metric-unavailable')}><span>Terrain · LOLA</span>
      <strong className="small-strong">{siteGeo?.terrain ? `Slope ${siteGeo.terrain.regionalSlopeDeg.toFixed(1)}°` : location ? 'Not available' : '—'}</strong>
      <small>{siteGeo?.terrain
       ? `Elevation ${(siteGeo.terrain.elevationM / 1000).toFixed(2)} km · slope over ~${siteGeo.terrain.baselineKm.toFixed(1)} km (lander-scale slopes can be steeper)`
-      : 'Elevation and regional slope need the LOLA DEM.'}</small></article>
-    <article className="metric"><span>Temperature · Diviner</span>
+      : 'Elevation and regional slope need the LOLA DEM.'}</small><GradeBadge result={gradeMetric(profile, 'slope', siteGeo?.terrain?.regionalSlopeDeg)} /></article>
+    <article className={'metric' + gradeClass(profile, gradeMetric(profile, 'dayMaxTemp', siteGeo?.thermal?.dayMaxK).grade)}><span>Temperature · Diviner</span>
      <strong className="small-strong">{siteGeo?.thermal?.dayMaxK != null ? `${siteGeo.thermal.dayMaxK.toFixed(0)} K / ${siteGeo.thermal.nightMinK?.toFixed(0) ?? '—'} K` : location ? 'Not available' : '—'}</strong>
-     <small>{siteGeo?.thermal ? 'Day max / night min of 2010 cycle averages (measured, ~7.6 km cells); not a forecast for this time' : 'Needs the Diviner maps in modelResources/diviner'}</small></article>
-    <article className={'metric' + (siteGeo?.terrain?.permanentlyShadowed ? ' metric-psr' : '')}><span>Permanent shadow · LOLA</span>
+     <small>{siteGeo?.thermal ? 'Day max / night min of 2010 cycle averages (measured, ~7.6 km cells); not a forecast for this time' : 'Needs the Diviner maps in modelResources/diviner'}</small><GradeBadge result={gradeMetric(profile, 'dayMaxTemp', siteGeo?.thermal?.dayMaxK)} /></article>
+    <article className={'metric' + (siteGeo?.terrain?.permanentlyShadowed ? ' metric-psr' : '') + gradeClass(profile)}><span>Permanent shadow · LOLA</span>
      <strong className="small-strong">{siteGeo?.terrain?.permanentlyShadowed === true ? 'Yes · PSR' : siteGeo?.terrain?.permanentlyShadowed === false ? 'No' : location ? 'Outside map' : '—'}</strong>
      <small>{siteGeo?.terrain?.permanentlyShadowed == null ? 'Official PSR map covers 75°S to the pole (120 m); unknown elsewhere, not "false"' : 'Official LOLA PSR map, 120 m (Mazarico et al. 2011)'}</small></article>
    </div>
@@ -425,6 +435,6 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
     {skyState === 'ready' && stars ? ' · Stars: NASA/Goddard SVS Deep Star Maps 2020 (J2000)' : ''}
    </p>
   </section>
-  {location && <SiteCoveragePanel data={siteCoverage.data} loading={siteCoverage.loading} error={siteCoverage.error} equipment={equipment} />}
+  {location && <SiteCoveragePanel data={siteCoverage.data} loading={siteCoverage.loading} error={siteCoverage.error} equipment={equipment} missionProfile={profile} />}
  </div>;
 }

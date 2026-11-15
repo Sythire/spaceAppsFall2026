@@ -1,12 +1,14 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import type { CoverageMode, Equipment } from '../../types';
 
-export const DEFAULT_EQUIPMENT: Equipment = { panelTiltDeg: 0, panelHeightM: 1, commMaskDeg: 0, commHeightM: 1 };
+/** Panel efficiency defaults to 30%, typical of space-grade triple-junction cells; enter your own. */
+export const DEFAULT_EQUIPMENT: Equipment = { panelTiltDeg: 0, panelHeightM: 1, commMaskDeg: 0, commHeightM: 1, panelEfficiencyPct: 30 };
 
 /** Allowed ranges; the backend validates the same limits. */
 const FIELDS: { key: keyof Equipment; label: string; min: number; max: number; step: string; help: string }[] = [
  { key: 'panelTiltDeg', label: 'Solar panel tilt · °', min: 0, max: 90, step: 'any', help: '0 = flat; tilted up from the ground, facing the Sun' },
  { key: 'panelHeightM', label: 'Solar panel height · m', min: 0, max: 1000, step: 'any', help: 'Mount height above the ground' },
+ { key: 'panelEfficiencyPct', label: 'Solar panel efficiency · %', min: 1, max: 100, step: 'any', help: 'Sunlight-to-electricity conversion (space-grade cells ≈ 28–32%)' },
  { key: 'commMaskDeg', label: 'Comm receiver angle · °', min: -5, max: 90, step: 'any', help: 'Minimum Earth elevation needed for a link' },
  { key: 'commHeightM', label: 'Comm receiver height · m', min: 0, max: 1000, step: 'any', help: 'Antenna height above the ground' },
 ];
@@ -22,9 +24,9 @@ export function validateEquipment(e: Record<keyof Equipment, string | number>): 
  return { value: out, error: '' };
 }
 
-interface Props { equipment: Equipment; mode: CoverageMode; onApply: (e: Equipment) => void; onModeChange: (m: CoverageMode) => void; }
+interface Props { equipment: Equipment; mode: CoverageMode; onApply: (e: Equipment) => void; onModeChange: (m: CoverageMode) => void; layout?: 'stack' | 'bar'; }
 
-export function EquipmentPanel({ equipment, mode, onApply, onModeChange }: Props) {
+export function EquipmentPanel({ equipment, mode, onApply, onModeChange, layout = 'stack' }: Props) {
  const [draft, setDraft] = useState<Record<keyof Equipment, string>>(() => toDraft(equipment));
  const [error, setError] = useState('');
  useEffect(() => setDraft(toDraft(equipment)), [equipment]);
@@ -34,9 +36,9 @@ export function EquipmentPanel({ equipment, mode, onApply, onModeChange }: Props
   setError(err);
   if (value) onApply(value);
  }
- return <form className="equipment" onSubmit={submit} noValidate>
-  <h3>Equipment</h3>
-  <p className="muted">Used by the Solar power and Earth communication layers and the site statistics. Terrain blocking comes from LOLA.</p>
+ return <form className={layout === 'bar' ? 'equipment equipment-bar panel' : 'equipment'} onSubmit={submit} noValidate aria-label="Power and communication equipment">
+  <div className="equipment-head"><h3>Power & communication equipment</h3>
+  <p className="muted">Used by the Solar power and Earth communication layers and the site statistics. Terrain blocking comes from LOLA.</p></div>
   {FIELDS.map(f => <label key={f.key} title={f.help}>{f.label}
    <input type="number" inputMode="decimal" step={f.step} min={f.min} max={f.max} value={draft[f.key]}
     onChange={e => setDraft(d => ({ ...d, [f.key]: e.target.value }))} aria-describedby={`help-${f.key}`} />
@@ -54,7 +56,7 @@ export function EquipmentPanel({ equipment, mode, onApply, onModeChange }: Props
 }
 
 function toDraft(e: Equipment): Record<keyof Equipment, string> {
- return { panelTiltDeg: String(e.panelTiltDeg), panelHeightM: String(e.panelHeightM), commMaskDeg: String(e.commMaskDeg), commHeightM: String(e.commHeightM) };
+ return { panelTiltDeg: String(e.panelTiltDeg), panelHeightM: String(e.panelHeightM), commMaskDeg: String(e.commMaskDeg), commHeightM: String(e.commHeightM), panelEfficiencyPct: String(e.panelEfficiencyPct) };
 }
 
 /** Equipment saved by the Explorer page (same browser), used by other pages such as Comparison. */

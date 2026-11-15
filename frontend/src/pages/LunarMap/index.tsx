@@ -29,10 +29,10 @@ export default function LunarMap(){
   state.setLocation({id:'custom',name:'Custom location',latitudeDeg:lat,longitudeDeg:lon,frame:'MOON_ME'});setError('');
  }
  return <>
-  <div className="page-heading"><h2>Start with a place on the Moon.</h2><p>Choose a site or click the globe. See how the Sun and Earth move through its sky.</p></div>
+  <div className="page-heading"><span className="eyebrow">Lunar explorer</span><h1>Find your perspective.</h1><p>A location. A moment in time. The Moon, seen from a little closer.</p></div>
   <div className="map-layout">
    <aside className="map-controls panel" aria-label="Scenario setup">
-    <span className="eyebrow">YOUR SCENARIO</span><h2>Location & time</h2>
+    <h2>Location & time</h2>
     <LocationSelect/>
     <details className="disclosure"><summary>Enter custom coordinates</summary><form onSubmit={submit}>
      <label>Latitude · °N<input name="lat" type="number" step="any" min="-90" max="90" required value={form.lat} onChange={e=>setForm(f=>({...f,lat:e.target.value}))}/></label>

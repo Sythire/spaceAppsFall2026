@@ -24,9 +24,10 @@ export function LocationSelect(){
    </optgroup>)}
   </select></label>
   <AsyncState {...resource} empty={sites.length===0}/>
-  {location&&<div className="location-caption"><span className="site-kind">{siteKind(location)}</span><p>{coordinates(location)} · MOON_ME</p>
+  {location&&<div className="location-caption"><span className="site-kind">{siteKind(location)}</span><p>{coordinates(location)}</p>
    {location.kind==='clps-planned'&&<p>Regional coordinates, not an exact landing point.</p>}
    <details className="inline-details"><summary>About this location</summary>
+    <p>Coordinates use the Moon mean Earth / polar axis frame (MOON_ME).</p>
     {location.status&&<p>{location.status}</p>}
     {location.coordinateNote&&<p>{location.coordinateNote}</p>}
     {location.source?<a href={location.source} target="_blank" rel="noreferrer">Coordinate source ↗</a>:<p>User-selected or hypothetical coordinates; not a documented landing site.</p>}

@@ -316,7 +316,7 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
     <p className="muted">Start it from <code>backend/</code>: <code>python -m uvicorn api.main:app --port 8000</code></p>
     <button type="button" onClick={() => setAttempt(n => n + 1)}>Retry</button>
    </div>}
-   {!series && !seriesError && <div className="scene-loading">Loading SPICE geometry…</div>}
+   {!series && !seriesError && <div className="scene-loading" role="status">Preparing the lunar view…</div>}
   </div>
 
   <section className="scene-timeline panel" aria-label="Time playback">
@@ -341,7 +341,7 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
   <section className="panel scene-readout">
    <div className="scene-readout-head">
     <h2>{location ? location.name : 'No site selected'}</h2>
-    <span className="muted">{location ? fmtLatLon(location.latitudeDeg, location.longitudeDeg) + ' · MOON_ME' : 'Click the Moon, a site ping, or enter coordinates.'}</span>
+    <span className="muted">{location ? fmtLatLon(location.latitudeDeg, location.longitudeDeg) : 'Click the Moon, choose a location, or enter coordinates.'}</span>
    </div>
    <div className="readout-grid">
     <article className={'metric metric-sun' + gradeClass(profile)}><span>Sun elevation · viewed time</span>

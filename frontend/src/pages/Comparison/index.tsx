@@ -24,7 +24,7 @@ export default function Comparison({embedded=false}:{embedded?:boolean}){
  const load=useCallback(()=>selectedSites.length>=2?analysisService.compare(selectedSites.map(location=>({location,utc,durationHours,stepHours}))):Promise.resolve(null),[selectedSites,utc,durationHours,stepHours]);
  const resource=useAsync(load);
  return <div className="comparison-page">
-  {!embedded&&<div className="page-heading"><h2>Put your options side by side.</h2><p>Choose two or three sites. Every column uses the same UTC start and duration.</p></div>}
+  {!embedded&&<div className="page-heading"><span className="eyebrow">Site comparison</span><h1>Another point of view.</h1><p>Two or three locations, one interval. See where the conditions differ.</p></div>}
   <section className="panel">
    <div className="section-heading"><h2>Your comparison · {selectedSites.length} of 3 sites</h2><Link to="/analysis">Back to analysis →</Link></div>
    <div className="comparison-slots">{selectedSites.map(site=><article className="comparison-slot" key={site.id}><span className="site-kind">{siteKind(site)}</span><h3>{site.name}</h3><button className="text-action" onClick={()=>toggleSite(site)} aria-label={`Remove ${site.name} from comparison`}>Remove ×</button></article>)}

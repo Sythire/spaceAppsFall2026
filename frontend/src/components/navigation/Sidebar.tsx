@@ -1,6 +1,18 @@
-import {useState} from 'react';
 import {NavLink} from 'react-router';
-import {LayoutDashboard,Globe,ChartNoAxesCombined,Info,PanelLeftClose,PanelLeftOpen,Orbit,Columns2} from 'lucide-react';
-export const navigation=[{path:'/',label:'Overview',icon:LayoutDashboard},{path:'/explorer',label:'Lunar Explorer',icon:Globe},{path:'/analysis',label:'Site Analysis',icon:ChartNoAxesCombined},{path:'/comparison',label:'Compare sites',icon:Columns2},{path:'/missions',label:'Missions & Future',icon:Orbit},{path:'/about',label:'About',icon:Info}];
-export function Sidebar(){const [collapsed,setCollapsed]=useState(false);return <aside className={'sidebar '+(collapsed?'collapsed':'')}><div className="brand"><span className="brand-mark" aria-hidden="true"><svg viewBox="0 0 48 48" focusable="false"><circle className="brand-orbit" cx="24" cy="24" r="20"/><path className="brand-moon" d="M34.6 11.4a15.1 15.1 0 1 0 2.1 22.8A16.5 16.5 0 0 1 34.6 11.4Z"/><circle className="brand-crater" cx="18" cy="20" r="2.2"/><circle className="brand-crater" cx="27.5" cy="27" r="1.5"/><path className="brand-trail" d="M11 34c4.3-3.4 7.2-4.3 10.1-4.1"/><path className="brand-boot" d="m11.2 31.6 2.2 1.1-.7 2-2.1-.9zm4.2-2.7 2.2 1.1-.7 2-2.1-.9z"/><path className="brand-star" d="m35 6 1.2 2.7L39 10l-2.8 1.2L35 14l-1.2-2.8L31 10l2.8-1.3z"/></svg></span>{!collapsed&&<span>Moonwalk<small>FIELD GUIDE</small></span>}</div><button className="collapse" aria-label={collapsed?'Expand navigation':'Collapse navigation'} onClick={()=>setCollapsed(!collapsed)}>{collapsed?<PanelLeftOpen size={18}/>:<PanelLeftClose size={18}/>}</button><nav aria-label="Main navigation">{navigation.map(({path,label,icon:Icon})=><NavLink key={path} to={path} end={path==='/'} title={label} aria-label={label}><Icon size={19}/>{!collapsed&&label}</NavLink>)}</nav>{!collapsed&&<div className="sidebar-footer">MISSION CONTROL<br/><span>Your lunar field guide</span></div>}</aside>;}
+import type {ReactNode} from 'react';
+export const navigation=[
+ {path:'/',label:'Overview'},
+ {path:'/explorer',label:'Explorer'},
+ {path:'/analysis',label:'Analysis'},
+ {path:'/comparison',label:'Compare'},
+ {path:'/missions',label:'Missions'},
+ {path:'/about',label:'About'},
+];
+export function Sidebar({children}:{children?:ReactNode}){
+ return <header className="sidebar">
+  <NavLink className="brand" to="/" aria-label="Moonwalk home"><span className="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="12.5" fill="none" stroke="currentColor" strokeWidth="1"/><path d="M16 3.5a12.5 12.5 0 0 1 0 25Z" fill="currentColor"/><circle cx="16" cy="16" r="3" fill="var(--fg-bg)"/></svg></span><span>moonwalk</span></NavLink>
+  <nav aria-label="Main navigation">{navigation.map(({path,label})=><NavLink key={path} to={path} end={path==='/'}>{label}</NavLink>)}</nav>
+  {children}
+ </header>;
+}
 

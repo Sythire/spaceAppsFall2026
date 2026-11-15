@@ -38,7 +38,7 @@ export function VirtualMoonTour(){
   async function toggleFullscreen(){setMessage('');try{if(document.fullscreenElement===frameRef.current){await document.exitFullscreen();return}if(!frameRef.current?.requestFullscreen){setMessage('Fullscreen is not available in this browser. The tour still works in this view.');return}await frameRef.current.requestFullscreen()}catch{setMessage('Fullscreen could not open. The tour still works in this view.')}}
   const current=stops[active];
   return <section className="virtual-tour tour-slideshow" ref={sectionRef} aria-labelledby="moon-tour-title" aria-roledescription="carousel" onFocusCapture={event=>{if(!(event.target as HTMLElement).closest("[data-playback]"))setPlaying(false);}}>
-    <div className="section-heading tour-heading"><div><span className="eyebrow">LUNAR IMAGERY</span><h2 id="moon-tour-title">Shackleton crater, up close</h2></div></div>
+    <div className="section-heading tour-heading"><div><h2 id="moon-tour-title">Lunar Gallery</h2></div></div>
     <div className="moon-tour-stage" ref={frameRef}>
       <div className="tour-visual" onMouseEnter={()=>setHovered(true)} onMouseLeave={()=>setHovered(false)}>
         <div className="tour-carousel-track" style={{transform:`translateX(-${active*100}%)`}}>

@@ -1,10 +1,11 @@
-# Moonwalk backend (FastAPI + SPICE) for a Hugging Face Docker Space.
+# Moonwalk backend (FastAPI + SPICE) as a self-contained image, for any host that builds a Dockerfile
+# (Railway, Fly.io, a paid Hugging Face Docker Space). Free Hugging Face accounts: see deploy/huggingface.
 #
-# The Space holds only this Dockerfile and README.md. The build clones the public GitHub repo, so the SPICE
-# kernels, LOLA DEM, PSR map, Diviner data and 3D models come straight from git. The terrain-horizon cache
-# (about 10 minutes of CPU) is built here, at image build time, so the first visitor never waits for it.
+# The build clones the public GitHub repo, so the SPICE kernels, LOLA DEM, PSR map, Diviner data and 3D models
+# come straight from git. The terrain-horizon cache (about 5-10 minutes of CPU) is built at image build time,
+# so the first visitor never waits for it. Listens on port 7860 (Hugging Face's default).
 #
-# To pick up new commits on main, use "Factory rebuild" in the Space settings, or bump CACHE_BUST below.
+# To pick up new commits on main, rebuild without cache, or bump CACHE_BUST below.
 FROM python:3.12-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \

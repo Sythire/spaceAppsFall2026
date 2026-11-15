@@ -1,37 +1,34 @@
----
-title: Moonwalk API
-emoji: 🌕
-colorFrom: gray
-colorTo: yellow
-sdk: docker
-app_port: 7860
-pinned: false
-short_description: SPICE + LOLA terrain backend for the Moonwalk lunar site app
----
+# Backend on a Hugging Face Space (Gradio SDK)
 
-# Moonwalk API
+Free Hugging Face accounts can't create Docker Spaces any more, but a **Gradio** Space runs `python app.py`
+and serves whatever listens on port 7860. `app.py` clones this repo and starts the FastAPI backend there.
+No Gradio UI is used.
 
-FastAPI backend for the Moonwalk lunar landing-site app: JPL SPICE geometry, LOLA terrain horizons,
-terrain-aware power and Earth-visibility maps, LOLA permanent-shadow and Diviner temperature products.
+## One-time setup
 
-Health check: `/api/v1/health` · interactive docs: `/docs`
-
-## Deploying (one-time setup)
-
-This folder (`deploy/huggingface/`) is the whole Space: the Dockerfile clones the public GitHub repo at build time.
-
-1. On huggingface.co, create a new Space, pick **Docker → Blank**, hardware **CPU basic (free)**, visibility **Public**.
-2. In the Space's **Files** tab, upload `Dockerfile` and this `README.md` (replace the generated README).
-3. Wait for the build (about 15 minutes; most of it is precomputing the terrain-horizon cache).
-   The API is then at `https://<user>-<space>.hf.space/api/v1/health`.
-4. In the Vercel project, set these environment variables, then redeploy:
+1. huggingface.co → **New Space** → SDK **Gradio** (template **Blank**), hardware **CPU basic (free)**,
+   visibility **Public** → **Create Space**.
+2. **Files** tab → **+ Contribute → Upload files**, and upload:
+   - `deploy/huggingface/app.py`
+   - `deploy/huggingface/requirements.txt`
+   - both `backend/cache/horizon_*.npz` files from a machine that has run the backend
+     (about 70 MB; optional but recommended. Without them the first boot spends ~10–15 min computing them).
+3. Edit the Space's `README.md` and add these lines inside the `---` header (keep the generated lines):
+   ```yaml
+   startup_duration_timeout: 1h
+   ```
+4. Wait for **Running**, then open `https://<user>-<space>.hf.space/api/v1/health`. It should return JSON.
+   (The Space's own page shows an error or blank, because there is no Gradio UI; that's expected.)
+5. Vercel → **Settings → Environment Variables**, then redeploy:
    - `VITE_API_BASE_URL` = `https://<user>-<space>.hf.space/api/v1`
    - `VITE_USE_MOCKS` = `false`
 
-CORS already allows `*.vercel.app`. For a custom domain, add a Space variable
-`CORS_ORIGINS=https://your.domain` (comma-separated for several).
+CORS already allows `*.vercel.app`. For a custom domain, add a Space variable `CORS_ORIGINS=https://your.domain`.
 
-**Updating:** the Space does not watch GitHub. After pushing to `main`, open the Space's settings and
-use **Factory rebuild**.
+**Updating:** `app.py` clones `main` on every start. After pushing, use **Settings → Restart Space**
+(or **Factory rebuild**). If a backend change bumps `horizon.CACHE_VERSION`, upload fresh cache files.
 
-**Sleeping:** free Spaces sleep after 48 hours without visits; the next request wakes it in about a minute.
+**Sleeping:** free Spaces sleep after 48 h without visits; the next request wakes it in about a minute.
+
+`deploy/docker/Dockerfile` is the equivalent image for hosts that take a Dockerfile (Railway, Fly.io,
+a paid Hugging Face Docker Space).

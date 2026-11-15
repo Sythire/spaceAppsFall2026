@@ -5,15 +5,15 @@ import { DEFAULT_EQUIPMENT, validateEquipment } from '../src/pages/LunarMap/Equi
 import { dailySummary } from '../src/pages/LunarMap/SiteCoveragePanel.tsx';
 import type { SiteCoverage } from '../src/types/index.ts';
 
-test('defaults are flat panel and 0° receiver mask, both 1 m off the ground', () => {
- assert.deepEqual(DEFAULT_EQUIPMENT, { panelTiltDeg: 0, panelHeightM: 1, commMaskDeg: 0, commHeightM: 1 });
+test('defaults are flat panel and 0° receiver mask, both 1 m off the ground, 30% efficient panel', () => {
+ assert.deepEqual(DEFAULT_EQUIPMENT, { panelTiltDeg: 0, panelHeightM: 1, commMaskDeg: 0, commHeightM: 1, panelEfficiencyPct: 30 });
 });
 
 test('equipment text inputs are parsed and range-checked', () => {
- assert.deepEqual(validateEquipment({ panelTiltDeg: '35', panelHeightM: '2.5', commMaskDeg: '5', commHeightM: '10' }).value,
-  { panelTiltDeg: 35, panelHeightM: 2.5, commMaskDeg: 5, commHeightM: 10 });
- for (const bad of [{ panelTiltDeg: '91' }, { panelTiltDeg: '-1' }, { panelHeightM: 'abc' }, { commMaskDeg: '' }, { commHeightM: '1001' }, { commMaskDeg: '-6' }]) {
-  const r = validateEquipment({ panelTiltDeg: '0', panelHeightM: '1', commMaskDeg: '0', commHeightM: '1', ...bad });
+ assert.deepEqual(validateEquipment({ panelTiltDeg: '35', panelHeightM: '2.5', commMaskDeg: '5', commHeightM: '10', panelEfficiencyPct: '28.5' }).value,
+  { panelTiltDeg: 35, panelHeightM: 2.5, commMaskDeg: 5, commHeightM: 10, panelEfficiencyPct: 28.5 });
+ for (const bad of [{ panelTiltDeg: '91' }, { panelTiltDeg: '-1' }, { panelHeightM: 'abc' }, { commMaskDeg: '' }, { commHeightM: '1001' }, { commMaskDeg: '-6' }, { panelEfficiencyPct: '0' }, { panelEfficiencyPct: '120' }]) {
+  const r = validateEquipment({ panelTiltDeg: '0', panelHeightM: '1', commMaskDeg: '0', commHeightM: '1', panelEfficiencyPct: '30', ...bad });
   assert.equal(r.value, null, JSON.stringify(bad));
   assert.match(r.error, /must be/);
  }
@@ -30,8 +30,9 @@ test('float32 grids survive the base64 round trip, including NaN', () => {
 
 test('scales: power uses the physical range now and a data-driven range monthly; comms instant is a margin', () => {
  assert.equal(scaleFor('power', 'instant', 200).max, 1400);
- assert.equal(scaleFor('power', 'monthly', 612).max, 650);
- assert.equal(scaleFor('power', 'monthly', null).max, 50);
+ assert.equal(scaleFor('power', 'instant', 200, 30).max, 420); // electrical at 30% efficiency
+ assert.equal(scaleFor('power', 'monthly', 612).max, 620);
+ assert.equal(scaleFor('power', 'monthly', null).max, 10);
  const m = scaleFor('comms', 'instant', null);
  assert.ok(m.blockedBelowZero && m.max === MARGIN_FULL_DEG);
  assert.equal(scaleFor('comms', 'monthly', null).unit, '%');

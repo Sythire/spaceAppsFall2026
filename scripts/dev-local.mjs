@@ -30,8 +30,8 @@ async function stop(code = 0) {
 }
 for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => { void stop(0); });
 
-function launch(command, args, cwd) {
-  const child = spawn(command, args, { cwd, stdio: 'inherit', windowsHide: true });
+function launch(command, args, cwd, env = process.env) {
+  const child = spawn(command, args, { cwd, env, stdio: 'inherit', windowsHide: true });
   children.push(child);
   child.once('error', error => { console.error(error.message); void stop(1); });
   child.once('exit', code => {
@@ -69,7 +69,9 @@ try {
     await new Promise(resolve => setTimeout(resolve, 400));
   }
   if (!ready) throw new Error('Backend failed its startup health check. Read the Python error above and check SPICE kernels.');
-  launch(process.execPath, [vite, '--host', '127.0.0.1', '--port', '5173', '--strictPort'], path.join(root, 'frontend'));
+  // This script manages the backend itself, so switch off the Vite backend watchdog.
+  launch(process.execPath, [vite, '--host', '127.0.0.1', '--port', '5173', '--strictPort'], path.join(root, 'frontend'),
+    { ...process.env, LUNARSITE_BACKEND: 'external' });
   console.log('\nWebsite: http://127.0.0.1:5173/\nAPI docs: http://127.0.0.1:8000/docs\nKeep this terminal open. Ctrl+C stops BOTH servers.\n');
 } catch (error) {
   console.error(`\nLocal startup failed: ${error.message}`);

@@ -69,7 +69,7 @@ function SiteDropdown({sites}:{sites:LunarLocation[]}){
 
  // Keep the detailed/primary `location` in sync with the first selected module, so the single-module
  // analysis panel and every other page that reads `location` follow the one selection.
- useEffect(()=>{if(primary&&primary.id!==location?.id)state.setLocation(primary);},[primary,location,state]);
+ useEffect(()=>{if(primary&&primary.id!==location?.id)state.setLocation(primary);else if(!primary&&location)state.toggleSite(location);},[primary,location,state]);
 
  useEffect(()=>{
   if(!open)return;
@@ -82,7 +82,7 @@ function SiteDropdown({sites}:{sites:LunarLocation[]}){
  useEffect(()=>{list.current?.querySelector<HTMLElement>(`[data-index="${highlight}"]`)?.scrollIntoView({block:'nearest'});},[highlight,open]);
 
  const onKey=(e:KeyboardEvent)=>{
-  if(e.key==='ArrowDown'){e.preventDefault();setHighlight(h=>Math.min(h+1,shown.length-1));}
+  if(e.key==='ArrowDown'){e.preventDefault();setHighlight(h=>Math.max(0,Math.min(h+1,shown.length-1)));}
   else if(e.key==='ArrowUp'){e.preventDefault();setHighlight(h=>Math.max(h-1,0));}
   else if((e.key==='Enter'||e.key==='+')&&shown[highlight]){e.preventDefault();toggle(shown[highlight]);}
   else if(e.key==='Escape'){setOpen(false);}
@@ -90,26 +90,26 @@ function SiteDropdown({sites}:{sites:LunarLocation[]}){
 
  return <div className="site-dropdown">
   <div className="site-dropdown-anchor" ref={root}>
-   <button type="button" className={`site-dropdown-trigger${open?' is-open':''}`} aria-haspopup="listbox" aria-expanded={open} onClick={()=>setOpen(o=>!o)}>
-    <span className="site-dropdown-label">Modules</span>
-    <span className="site-dropdown-value">{selectedSites.length===0?'Choose modules…':selectedSites.length===1?primary!.name:`${selectedSites.length} modules selected`}</span>
-    <span className="site-dropdown-count">{sites.length} modules</span>
+   <button type="button" className={`site-dropdown-trigger${open?' is-open':''}`} aria-label="Choose landing sites" aria-controls={open?listId:undefined} aria-haspopup="listbox" aria-expanded={open} onClick={()=>setOpen(o=>!o)}>
+    <span className="site-dropdown-label">Sites</span>
+    <span className="site-dropdown-value">{selectedSites.length===0?'Choose sites…':selectedSites.length===1?primary!.name:`${selectedSites.length} sites selected`}</span>
+    <span className="site-dropdown-count">{sites.length} sites</span>
     <ChevronDown size={17} aria-hidden="true"/>
    </button>
 
    {open&&<div className="site-dropdown-panel">
     <div className="site-dropdown-search">
      <Search size={14} aria-hidden="true"/>
-     <input ref={search} type="text" role="combobox" aria-expanded="true" aria-controls={listId} aria-autocomplete="list"
+     <input ref={search} type="text" role="combobox" aria-expanded="true" aria-controls={listId} aria-autocomplete="list" aria-label="Search landing sites"
       aria-activedescendant={shown[highlight]?`${listId}-${highlight}`:undefined}
-      value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={onKey} placeholder="Search modules (Apollo, CLPS, Athena…)"/>
+      value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={onKey} placeholder="Search Apollo, CLPS or a landing site"/>
     </div>
-    <p className="site-dropdown-help">Select up to {MAX_COMPARE} modules · the <b>first</b> is shown in detail, 2–3 compare ({selectedSites.length} / {MAX_COMPARE})</p>
-    <ul className="site-dropdown-list" role="listbox" id={listId} ref={list} aria-label="All modules" aria-multiselectable="true">
+    <p className="site-dropdown-help">Select up to {MAX_COMPARE} sites. The first shows detailed conditions; add another to compare.</p>
+    <ul className="site-dropdown-list" role="listbox" id={listId} ref={list} aria-label="Landing sites" aria-multiselectable="true">
      {shown.map((s,i)=>{
       const on=selected(s),off=blocked(s),isPrimary=primary?.id===s.id;
       const ix=on?selectedSites.findIndex(x=>x.id===s.id):-1;
-      return <li key={s.id} id={`${listId}-${i}`} data-index={i} role="option" aria-selected={on}
+      return <li key={s.id} id={`${listId}-${i}`} data-index={i} role="option" aria-selected={on} aria-disabled={off}
        className={`site-option${i===highlight?' is-highlighted':''}${on?' is-current':''}`}
        onMouseEnter={()=>setHighlight(i)} onMouseDown={e=>e.preventDefault()} onClick={()=>toggle(s)}>
        <div className="site-option-text">
@@ -126,7 +126,7 @@ function SiteDropdown({sites}:{sites:LunarLocation[]}){
        </div>
       </li>;
      })}
-     {shown.length===0&&<li className="site-option-empty">No modules match “{query}”.</li>}
+     {shown.length===0&&<li className="site-option-empty">No sites match “{query}”.</li>}
     </ul>
    </div>}
   </div>
@@ -135,7 +135,7 @@ function SiteDropdown({sites}:{sites:LunarLocation[]}){
 
   <div className="site-compare-bar" aria-live="polite">
    {selectedSites.length===0
-    ?<span className="muted">Pick modules from the list. The first is shown in detail; add a 2nd or 3rd to compare.</span>
+    ?<span className="muted">Choose a site to start. Add a second or third for graphs.</span>
     :<span className="site-compare-group">
       <span className="site-compare-label">{selectedSites.length===1?'Showing in detail:':`Comparing ${selectedSites.length} / ${MAX_COMPARE}:`}</span>
       {selectedSites.map((s,i)=><button key={s.id} type="button" className="site-compare-chip" style={{'--chip':siteColor(i)} as CSSProperties} onClick={()=>state.toggleSite(s)} aria-label={`Remove ${s.name} from selection`}><span className="site-compare-dot" aria-hidden="true"/>{s.name}{i===0&&selectedSites.length>1&&<em className="site-compare-primary"> · detailed</em>}<X size={12} aria-hidden="true"/></button>)}
@@ -146,7 +146,13 @@ function SiteDropdown({sites}:{sites:LunarLocation[]}){
 
 export function SitePicker({layout='grid'}:{layout?:Layout}){
  const resource=useAsync(siteService.getSites);
- const sites=resource.data??[];
+ const {location,selectedSites}=useAppState();
+ const [customSite,setCustomSite]=useState(()=>location?.id==='custom'?location:null);
+ useEffect(()=>{if(location?.id==='custom')setCustomSite(location);},[location]);
+ const sites=[...(resource.data??[])];
+ for(const site of [...selectedSites,...(customSite?[customSite]:[])]){
+  if(!sites.some(s=>s.id===site.id))sites.push(site);
+ }
  return <>
   <AsyncState {...resource} empty={resource.data?.length===0}/>
   {layout==='dropdown'

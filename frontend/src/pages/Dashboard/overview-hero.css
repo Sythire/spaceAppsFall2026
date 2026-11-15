@@ -1,0 +1,66 @@
+.home-page { container-type: inline-size; }
+.home-page .overview-hero { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); }
+.home-page .overview-hero .welcome-copy { padding: 36px; }
+.home-page .overview-hero .hello-pill { font-size: 11px; letter-spacing: .7px; }
+.home-page .overview-hero .welcome-copy h2 {
+  margin: 20px 0 18px;
+  font-size: clamp(36px, 4vw, 50px);
+  line-height: 1.1;
+  letter-spacing: -1.7px;
+}
+.home-page .overview-problem {
+  margin: 0 0 14px;
+  color: #ffe3a0;
+  font-size: clamp(20px, 2vw, 25px);
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: -.4px;
+}
+.home-page .overview-hero .welcome-copy p {
+  max-width: 440px;
+  color: #eeebff;
+  font-size: 16px;
+  line-height: 1.7;
+}
+.home-page .overview-hero .welcome-copy .overview-purpose { margin-top: 16px; color: #dcd7f8; }
+.home-page .overview-hero .welcome-copy p strong {
+  color: #fff5db;
+  font-weight: 650;
+}
+.home-page .overview-hero .welcome-art { min-height: 440px; }
+.home-page .overview-hero .nasa-moon-model { grid-area: 1 / 1; justify-self: center; align-self: center; }
+.home-page .overview-hero .art-caption {
+  top: 20px; bottom: auto; right: auto; left: 20px;
+  font-size: 8px; letter-spacing: .6px;
+}
+.moon-interaction-hint {
+  position: absolute; z-index: 3; bottom: 22px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 11px;
+  padding: 11px 18px; border: 1px solid #d7cfff38; border-radius: 14px;
+  background: #211c49e6; color: #ffe3a0; white-space: nowrap; pointer-events: none;
+}
+.moon-interaction-hint strong { display: block; color: #fff5db; font-size: 13px; font-weight: 600; line-height: 1.5; }
+.moon-interaction-hint div > span { display: block; color: #c8c0e5; font-size: 11px; line-height: 1.6; }
+.home-page .quick-card { gap: 14px; padding: 20px; }
+.home-page .quick-card strong { font-size: 15px; font-weight: 650; line-height: 1.4; }
+.home-page .quick-card small { margin-top: 3px; font-size: 12px; line-height: 1.5; }
+.home-page .quick-card > svg { flex-shrink: 0; }
+@media (max-width: 760px) {
+  .home-page .overview-hero { grid-template-columns: 1fr; }
+  .home-page .overview-hero .welcome-art { min-height: 320px; }
+  .home-page .overview-hero .welcome-copy { padding: 26px 22px; }
+  .home-page .overview-hero .welcome-copy h2 { font-size: 37px; margin: 18px 0; }
+  .home-page .overview-problem { font-size: 22px; }
+  .moon-interaction-hint { bottom: 14px; padding: 9px 15px; }
+  .home-page .quick-card { padding: 17px; }
+  .home-page .quick-card strong { font-size: 14px; }
+}
+@container (max-width: 640px) {
+  .home-page .overview-hero { grid-template-columns: 1fr; }
+  .home-page .overview-hero .welcome-art { grid-row: 1; min-height: 320px; }
+  .home-page .overview-hero .welcome-copy { padding: 26px 22px; }
+  .home-page .overview-hero .welcome-copy h2 { font-size: 37px; }
+  .home-page .quick-links { grid-template-columns: 1fr; }
+  .home-page .moon-tour-stage { grid-template-columns: 1fr; }
+  .home-page .tour-visual { min-height: 270px; }
+}

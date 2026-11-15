@@ -29,18 +29,18 @@ export default function Comparison({embedded=false}:{embedded?:boolean}){
  const resource=useAsync(load);
  return <>
   {!embedded&&<MockNotice/>}
-  {!embedded&&<div className="page-heading"><h2>Compare landing scenarios</h2><p>Select up to three modules. One shows its own analysis; two or three are compared over the same UTC start and interval.</p></div>}
+  {!embedded&&<div className="page-heading"><h2>Compare landing sites</h2><p>Choose up to three landing sites. Compare their sunlight and Earth visibility over the same time period.</p></div>}
   {!embedded&&<Panel title="Choose comparison sites"><SitePicker layout="dropdown"/></Panel>}
   <Panel title={`Selected sites · ${compareSites.length} / 3`}>
    {!embedded&&<ScenarioControls/>}
    <div className="button-row">{selectedSites.map(site=><button key={site.id} onClick={()=>toggleSite(site)} aria-label={`Remove ${site.name} from comparison`}>{site.name} ×</button>)}</div>
    <AsyncState {...resource}/>
-   {compareSites.length===0&&<p className="muted">Choose a module to analyse, or add sites with the + button above or from Site Research.</p>}
-   {compareSites.length===1&&selectedSites.length<2&&<p className="muted">Showing a single module. Add another site with the + button to compare them side by side.</p>}
+   {compareSites.length===0&&<p className="muted">Choose a site above to see its conditions.</p>}
+   {compareSites.length===1&&selectedSites.length<2&&<p className="muted">Add a second site to compare conditions.</p>}
    {resource.data&&<><p className="muted">{resource.data.results[0].interval?.startUtc} · {durationHours/24} days · {resource.data.results[0].mode} results</p><div className="table-scroll"><table>
     <thead><tr><th>Metric</th>{resource.data.results.map(r=><th key={r.request.location.id}>{r.request.location.name}</th>)}</tr></thead>
     <tbody>{rows.map(row=><tr key={row.label}><th>{row.label}</th>{resource.data!.results.map(r=><td key={r.request.location.id}>{row.value(r)}</td>)}</tr>)}</tbody>
-   </table></div><p className="muted">Percentages describe each full analysis interval. This table uses a smooth Moon; the terrain-aware table below includes shadows. Ground-station contacts and radio link budgets are not included.</p></>}
+   </table></div><p className="muted">Percentages cover the full time period. This table uses a smooth horizon; the table below includes terrain shadows. Earth visibility does not confirm a radio link.</p></>}
    {resource.data&&resource.data.results.length>=1&&<ComparisonVisuals results={resource.data.results} order={compareSites.map(s=>s.id)}/>}
    <TerrainComparison sites={compareSites} utc={utc} days={durationHours/24}/>
   </Panel>

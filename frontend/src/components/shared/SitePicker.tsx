@@ -63,12 +63,15 @@ function SiteDropdown({sites}:{sites:LunarLocation[]}){
 
  /** Click a module: analyse just that one (the original "Use for analysis"). */
  const analyse=(s:LunarLocation)=>{state.setLocation(s);setOpen(false);setQuery('');};
- /** "+": add/remove a module from the comparison. The first "+" also brings in the analysed module, so the
-  * comparison is "analysed module vs the ones you added". toggleSite updates functionally, so calls chain. */
+ /** "+": add/remove a module from the comparison. If nothing is being analysed yet, the first "+" also
+  * analyses that module, so one selection already shows its data. When something else is analysed, "+"
+  * brings that module into the comparison too, so it reads "analysed module vs the ones you added".
+  * toggleSite / setLocation update functionally, so the calls chain. */
  const toggleCompare=(s:LunarLocation)=>{
   if(comparing(s)){state.toggleSite(s);return;}
   if(blocked(s))return;
-  const bringAnalysed=location&&location.id!==s.id&&!comparing(location)&&selectedSites.length<=MAX_COMPARE-2;
+  if(!location){state.setLocation(s);state.toggleSite(s);return;}
+  const bringAnalysed=location.id!==s.id&&!comparing(location)&&selectedSites.length<=MAX_COMPARE-2;
   if(bringAnalysed)state.toggleSite(location);
   state.toggleSite(s);
  };

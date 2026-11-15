@@ -21,7 +21,7 @@ export default function Analysis(){
  return <>
   <MockNotice/>
   <div className="page-heading"><span className="eyebrow">SITE RESEARCH · DECISION WORKSPACE</span><h2>Compare the conditions at each site.</h2><p>Choose a site, UTC start and duration to evaluate lighting and Earth visibility.</p></div>
-  <Panel title="Choose a location"><SitePicker/><p className="muted">For custom coordinates, select a point in the <Link to="/explorer">Lunar Explorer</Link>, then return here.</p></Panel>
+  <Panel title="Choose a location"><SitePicker layout="dropdown"/><p className="muted">For custom coordinates, select a point in the <Link to="/explorer">Lunar Explorer</Link>, then return here.</p></Panel>
   <Panel title={location?`Scenario · ${location.name}`:'Scenario'}>
    <ScenarioControls/>
    {location&&<p className="muted">{location.latitudeDeg}° N / {location.longitudeDeg}° E · MOON_ME</p>}

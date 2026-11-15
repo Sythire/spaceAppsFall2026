@@ -9,8 +9,8 @@ const FIELDS: { key: keyof Equipment; label: string; min: number; max: number; s
  { key: 'panelTiltDeg', label: 'Solar panel tilt · °', min: 0, max: 90, step: 'any', help: '0 = flat; tilted up from the ground, facing the Sun' },
  { key: 'panelHeightM', label: 'Solar panel height · m', min: 0, max: 1000, step: 'any', help: 'Mount height above the ground' },
  { key: 'panelEfficiencyPct', label: 'Solar panel efficiency · %', min: 1, max: 100, step: 'any', help: 'Sunlight-to-electricity conversion (space-grade cells ≈ 28–32%)' },
- { key: 'commMaskDeg', label: 'Comm receiver angle · °', min: -5, max: 90, step: 'any', help: 'Minimum Earth elevation needed for a link' },
- { key: 'commHeightM', label: 'Comm receiver height · m', min: 0, max: 1000, step: 'any', help: 'Antenna height above the ground' },
+ { key: 'commMaskDeg', label: 'Antenna elevation limit · °', min: -5, max: 90, step: 'any', help: 'Minimum Earth elevation needed for a link' },
+ { key: 'commHeightM', label: 'Antenna height · m', min: 0, max: 1000, step: 'any', help: 'Antenna height above the ground' },
 ];
 
 export function validateEquipment(e: Record<keyof Equipment, string | number>): { value: Equipment | null; error: string } {
@@ -37,8 +37,8 @@ export function EquipmentPanel({ equipment, mode, onApply, onModeChange, layout 
   if (value) onApply(value);
  }
  return <form className={layout === 'bar' ? 'equipment equipment-bar panel' : 'equipment'} onSubmit={submit} noValidate aria-label="Power and communication equipment">
-  <div className="equipment-head"><h3>Power & communication equipment</h3>
-  <p className="muted">Used by the Solar power and Earth communication layers and the site statistics. Terrain blocking comes from LOLA.</p></div>
+  <div className="equipment-head"><h3>Solar panels & antenna</h3>
+  <p className="muted">Set equipment values for power and Earth visibility. LOLA terrain determines blocking.</p></div>
   {FIELDS.map(f => <label key={f.key} title={f.help}>{f.label}
    <input type="number" inputMode="decimal" step={f.step} min={f.min} max={f.max} value={draft[f.key]}
     onChange={e => setDraft(d => ({ ...d, [f.key]: e.target.value }))} aria-describedby={`help-${f.key}`} />
@@ -49,7 +49,7 @@ export function EquipmentPanel({ equipment, mode, onApply, onModeChange, layout 
   </div>
   <p role="alert">{error}</p>
   <fieldset className="mode-switch"><legend>Map statistic</legend>
-   <label className="checkbox"><input type="radio" name="coverage-mode" checked={mode === 'instant'} onChange={() => onModeChange('instant')} />Now (viewed time)</label>
+   <label className="checkbox"><input type="radio" name="coverage-mode" checked={mode === 'instant'} onChange={() => onModeChange('instant')} />Selected time</label>
    <label className="checkbox"><input type="radio" name="coverage-mode" checked={mode === 'monthly'} onChange={() => onModeChange('monthly')} />Monthly average</label>
   </fieldset>
  </form>;

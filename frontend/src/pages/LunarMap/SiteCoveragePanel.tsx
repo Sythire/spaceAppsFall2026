@@ -33,9 +33,9 @@ export function SiteCoveragePanel({ data, loading, error, equipment, missionProf
  const profile = useMemo(() => data ? data.horizonProfile.azimuthDeg.map((az, i) => ({ az, panel: data.horizonProfile.panelDeg[i], comm: data.horizonProfile.commDeg[i] })) : [], [data]);
 
  return <section className="panel site-coverage" aria-live="polite">
-  <h2>Power & communication · next 30 days (terrain-aware)</h2>
+  <h2>Power & Earth visibility · 30 days</h2>
   <p className="muted">Panel tilt {equipment.panelTiltDeg}° at {equipment.panelHeightM} m, {equipment.panelEfficiencyPct}% efficient · receiver needs Earth ≥ {equipment.commMaskDeg}° at {equipment.commHeightM} m. Starts at the scenario time.</p>
-  {loading && <p className="muted">Computing terrain horizon and hourly geometry…</p>}
+  {loading && <p className="muted">Calculating terrain-aware conditions…</p>}
   {error && <p role="alert">{error}</p>}
   {data && <>
    <div className="readout-grid">
@@ -53,18 +53,18 @@ export function SiteCoveragePanel({ data, loading, error, equipment, missionProf
     <div className="chart" role="img" aria-label="Sun and Earth elevation against the terrain horizon over 30 days, with panel power">
      <ResponsiveContainer width="100%" height={260}>
       <ComposedChart data={points}>
-       <CartesianGrid stroke="#263342" strokeDasharray="3 3" />
-       <XAxis dataKey="day" type="number" domain={[0, 'dataMax']} stroke="#9aaabc" unit=" d" tickCount={8} />
-       <YAxis yAxisId="deg" stroke="#9aaabc" unit="°" domain={['auto', 'auto']} />
-       <YAxis yAxisId="w" orientation="right" stroke="#c99a5a" unit=" W" domain={[0, 'auto']} />
-       <ReferenceLine yAxisId="deg" y={0} stroke="#aab5c2" strokeDasharray="4 4" />
-       <Tooltip contentStyle={{ background: '#142131', borderColor: '#36485e' }} labelFormatter={d => `Day ${Number(d).toFixed(2)}`}
+       <CartesianGrid stroke="var(--chart-grid)" strokeDasharray="3 3" />
+       <XAxis dataKey="day" type="number" domain={[0, 'dataMax']} stroke="var(--chart-axis)" unit=" d" tickCount={8} />
+       <YAxis yAxisId="deg" stroke="var(--chart-axis)" unit="°" domain={['auto', 'auto']} />
+       <YAxis yAxisId="w" orientation="right" stroke="var(--chart-power)" unit=" W" domain={[0, 'auto']} />
+       <ReferenceLine yAxisId="deg" y={0} stroke="var(--chart-axis)" strokeDasharray="4 4" />
+       <Tooltip contentStyle={{ background: 'var(--card)', borderColor: 'var(--line)', color: 'var(--ink)' }} labelFormatter={d => `Day ${Number(d).toFixed(2)}`}
         formatter={(v, name) => [typeof v === 'number' ? v.toFixed(1) : String(v), String(name)]} />
-       <Area yAxisId="w" type="stepAfter" dataKey="power" name="Electrical output (W/m²)" stroke="#e8913b" fill="#e8913b33" isAnimationActive={false} />
-       <Line yAxisId="deg" dataKey="sunEl" name="Sun elevation" stroke="#ffd27a" dot={false} isAnimationActive={false} />
-       <Line yAxisId="deg" dataKey="sunHz" name="Terrain horizon toward Sun" stroke="#ffd27a" strokeDasharray="4 3" strokeOpacity={0.6} dot={false} isAnimationActive={false} />
-       <Line yAxisId="deg" dataKey="earthEl" name="Earth elevation" stroke="#6fb7ff" dot={false} isAnimationActive={false} />
-       <Line yAxisId="deg" dataKey="earthLimit" name="Earth limit (terrain / mask)" stroke="#6fb7ff" strokeDasharray="4 3" strokeOpacity={0.6} dot={false} isAnimationActive={false} />
+       <Area yAxisId="w" type="stepAfter" dataKey="power" name="Electrical output (W/m²)" stroke="var(--chart-power)" fill="var(--chart-power-fill)" isAnimationActive={false} />
+       <Line yAxisId="deg" dataKey="sunEl" name="Sun elevation" stroke="var(--chart-sun)" dot={false} isAnimationActive={false} />
+       <Line yAxisId="deg" dataKey="sunHz" name="Terrain horizon toward Sun" stroke="var(--chart-sun)" strokeDasharray="4 3" strokeOpacity={0.6} dot={false} isAnimationActive={false} />
+       <Line yAxisId="deg" dataKey="earthEl" name="Earth elevation" stroke="var(--chart-earth)" dot={false} isAnimationActive={false} />
+       <Line yAxisId="deg" dataKey="earthLimit" name="Earth limit (terrain / mask)" stroke="var(--chart-earth)" strokeDasharray="4 3" strokeOpacity={0.6} dot={false} isAnimationActive={false} />
       </ComposedChart>
      </ResponsiveContainer>
      <p className="chart-key"><i className="k-sun" />Sun elevation <i className="k-sun dashed" />terrain horizon toward Sun <i className="k-earth" />Earth elevation <i className="k-earth dashed" />Earth limit <i className="k-power" />panel power</p>
@@ -72,13 +72,13 @@ export function SiteCoveragePanel({ data, loading, error, equipment, missionProf
     <div className="chart" role="img" aria-label="Terrain horizon elevation by compass direction">
      <ResponsiveContainer width="100%" height={260}>
       <LineChart data={profile}>
-       <CartesianGrid stroke="#263342" strokeDasharray="3 3" />
-       <XAxis dataKey="az" type="number" domain={[0, 360]} ticks={[0, 90, 180, 270, 360]} stroke="#9aaabc" unit="°" />
-       <YAxis stroke="#9aaabc" unit="°" domain={['auto', 'auto']} />
-       <ReferenceLine y={0} stroke="#aab5c2" strokeDasharray="4 4" />
-       <Tooltip contentStyle={{ background: '#142131', borderColor: '#36485e' }} labelFormatter={a => `Azimuth ${a}°`} formatter={(v, n) => [typeof v === 'number' ? v.toFixed(2) + '°' : String(v), String(n)]} />
-       <Line dataKey="panel" name="Horizon at panel height" stroke="#ffd27a" dot={false} isAnimationActive={false} />
-       <Line dataKey="comm" name="Horizon at receiver height" stroke="#6fb7ff" strokeDasharray="4 3" dot={false} isAnimationActive={false} />
+       <CartesianGrid stroke="var(--chart-grid)" strokeDasharray="3 3" />
+       <XAxis dataKey="az" type="number" domain={[0, 360]} ticks={[0, 90, 180, 270, 360]} stroke="var(--chart-axis)" unit="°" />
+       <YAxis stroke="var(--chart-axis)" unit="°" domain={['auto', 'auto']} />
+       <ReferenceLine y={0} stroke="var(--chart-axis)" strokeDasharray="4 4" />
+       <Tooltip contentStyle={{ background: 'var(--card)', borderColor: 'var(--line)', color: 'var(--ink)' }} labelFormatter={a => `Azimuth ${a}°`} formatter={(v, n) => [typeof v === 'number' ? v.toFixed(2) + '°' : String(v), String(n)]} />
+       <Line dataKey="panel" name="Horizon at panel height" stroke="var(--chart-sun)" dot={false} isAnimationActive={false} />
+       <Line dataKey="comm" name="Horizon at receiver height" stroke="var(--chart-earth)" strokeDasharray="4 3" dot={false} isAnimationActive={false} />
       </LineChart>
      </ResponsiveContainer>
      <p className="chart-key">Terrain horizon around the site (0° = north, clockwise)</p>

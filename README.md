@@ -1,153 +1,116 @@
-# Moonwalk / LunarSite Explorer
+# Moonwalk
 
-NASA Space Apps lunar landing-site workspace: a 3D explorer, live SPICE analysis, site comparison, scientific layers, a Moon tour and mission guide.
+**Explore the Moon. Compare landing sites. Understand when to land.**
 
-## Already set up? Start here
+Moonwalk is a NASA Space Apps project that helps people explore lunar landing sites and compare sunlight, terrain and Earth visibility at a chosen date and time.
 
-If this checkout already has its dependencies and Python environment, run only:
+## What you can do
 
-```powershell
+- **Lunar Explorer:** rotate the Moon, select a mission site or enter coordinates, and view layers for sunlight, elevation, temperature, permanent shadow, solar power and Earth visibility.
+- **Site Research:** investigate a location or compare up to three sites using graphs and visibility windows.
+- **Overview and Missions:** explore lunar imagery and learn about past and planned missions.
+
+To get started, open **Lunar Explorer**, choose a site and scenario time, then turn on the layers you want to explore. Open **Site Research** to compare sites over time.
+
+## Run locally
+
+Already installed? Run this from the repository folder:
+
+```sh
 npm run dev:local
 ```
 
-**Do not rerun `npm ci` while the app is running.** First press **Ctrl+C in the terminal running the servers**. On Windows, Vite locks the native `lightningcss` file; `npm ci` deletes and recreates dependencies, so it fails with `EPERM` until Vite stops. If an assistant started your servers, ask it to stop them before reinstalling.
+Open [Moonwalk](http://127.0.0.1:5173/). Keep the terminal open; **Ctrl+C stops both the website and backend**.
 
-The setup sections below are for a new checkout. You do not need to recreate the virtual environment or reinstall dependencies on every startup.
+### First-time setup
 
-## Prerequisites
+Install **Node.js 22.12+**, **Python 3.11+** and **Git**. Internet access is needed for installation and externally hosted imagery.
 
-- Node.js 22.12+ and npm 10+ (tested locally with Node 22.18).
-- Python 3.11+ with pip and venv (tested locally with Python 3.14).
-- Git and internet access for initial installs and externally hosted imagery/model-viewer.
-- Run all setup commands from the **repository root**.
+Clone the project:
 
-## First-time setup: Windows PowerShell
-
-Stop any existing servers for this checkout before running these installation commands.
-
-```powershell
+```sh
 git clone https://github.com/Sythire/spaceAppsFall2026.git
 cd spaceAppsFall2026
-git switch main
 npm ci
+```
+
+Then follow the instructions for your operating system.
+
+**Windows PowerShell**
+
+```powershell
 python -m venv backend/.venv
 backend/.venv/Scripts/python.exe -m pip install -r backend/requirements.txt
-Copy-Item frontend/.env.example frontend/.env.local
 npm run dev:local
 ```
 
-If you already have the checkout, enter its folder, commit or stash your changes, then run `git pull --ff-only origin main` instead of cloning. Preserve existing `.env.local` customizations. Virtual-environment activation is unnecessary with the explicit Python path above.
-
-## First-time setup: macOS / Linux
+**macOS / Linux**
 
 ```sh
-git clone https://github.com/Sythire/spaceAppsFall2026.git
-cd spaceAppsFall2026
-git switch main
-npm ci
 python3 -m venv backend/.venv
 backend/.venv/bin/python -m pip install -r backend/requirements.txt
-cp frontend/.env.example frontend/.env.local
 npm run dev:local
 ```
 
-## Everyday startup: one terminal
+The launcher creates `frontend/.env.local` if it is missing, starts the backend on port **8000**, and starts the website on port **5173**. You do not need to activate the Python environment or start a second terminal.
+
+### Updating an existing installation
+
+Stop the servers and save your local changes before pulling updates:
 
 ```sh
-npm run dev:local
+git pull --ff-only origin main
 ```
 
-Open [the website](http://127.0.0.1:5173/) or [Lunar Explorer](http://127.0.0.1:5173/explorer).
+If `package-lock.json` changed, run `npm ci`. If `backend/requirements.txt` changed, repeat the Python install command above. Then run `npm run dev:local` again.
 
-The launcher starts the backend, waits for its SPICE health check, then starts Vite on a fixed port. Keep the terminal open. **Ctrl+C stops both servers.** If a server fails, the other is stopped. Occupied ports produce an error instead of silently changing ports or killing unrelated processes. The launcher creates `frontend/.env.local` from the example only if missing; it never installs dependencies automatically.
+### Connection settings
 
-After pulling changes, stop the servers first. Run `npm ci` when the lockfile changes and the pip install command when backend requirements change. Restart the launcher after changing Python code, kernels or environment variables. Vite updates frontend source edits automatically.
-
-## Configuration
-
-The ignored `frontend/.env.local` should contain:
+For local use, `frontend/.env.local` should contain:
 
 ```dotenv
 VITE_USE_MOCKS=false
 VITE_API_BASE_URL=http://127.0.0.1:8000/api/v1
 ```
 
-Restart Vite after environment changes. `VITE_USE_MOCKS=true` enables fixtures for analysis/comparison; the 3D explorer still requires the backend. VITE variables are visible to the browser: never store secrets there.
+Restart the servers after changing these settings. Demo mode uses example analysis results; the 3D explorer still needs the backend.
 
-- Website: http://127.0.0.1:5173/
-- Backend health: http://127.0.0.1:8000/api/v1/health
-- API documentation: http://127.0.0.1:8000/docs
-
-The combined launcher uses ports 5173 and 8000. For custom API addresses, use the manual workflow and configure backend CORS to match your frontend origin.
-
-## Manual startup: two terminals
-
-`npm run dev` retains its original behavior: it starts **only the frontend**. Live data also requires the backend.
-
-```powershell
-# Terminal 1, repository root, Windows
-backend/.venv/Scripts/python.exe -m uvicorn api.main:app --app-dir backend --host 127.0.0.1 --port 8000
-
-# Terminal 2, repository root
-npm run dev --workspace frontend -- --port 5173 --strictPort
-```
-
-On macOS/Linux replace the Python executable with `backend/.venv/bin/python`. Do not run the manual servers and combined launcher simultaneously. Vite uses port 5173 in both workflows and stops if it is occupied; close the existing frontend instead of opening a second copy on 5174.
-
-## Scientific files
-
-The required SPICE kernels are tracked on main in `backend/ephermis_data_retreiver/required_kernels/`:
-
-- `naif0012.tls`
-- `pck00011.tpc`
-- `de440s.bsp`
-- `moon_pa_de440_200625.bpc`
-- `moon_de440_250416.tf`
-
-The backend computes geometry locally; no Horizons API key is needed. See [backend documentation](backend/README.md) for sources, coverage and methods. Restart after changing kernels.
-
-Keep the provided GLB models and scientific products in `modelResources/`, with their exact filenames and metadata. These include LOLA elevation and available PSR/Diviner products. Missing planetary models use labeled reference spheres; unavailable scientific products must remain labeled unavailable. Some backend tests skip when optional data are absent. The launcher does not download large scientific products.
-
-Follow each view's displayed assumptions: smooth-horizon summaries differ from terrain-aware sections. Earth visibility is geometric, not a radio link budget. The removed experimental rover-power mesh is not restored by these startup changes.
-
-## Troubleshooting
-
-`git switch main` showing `M README.md` or `M package.json` is a Git status notice about local edits, not an error. Preserve those edits; do not reset them just to start the app.
-
-| Symptom | Fix |
+| Problem | What to do |
 | --- | --- |
-| Ephemeris service unavailable / Failed to fetch | Use `npm run dev:local`, not just `npm run dev`. Check backend health, Python output and the API URL above. Restart both servers after pulling Python changes, then refresh the page. |
-| Port 5173 or 8000 already in use | Stop the old project terminals with Ctrl+C, then retry. Do not start multiple copies. |
-| Windows EPERM/unlink error involving lightningcss during npm ci | Stop all dev servers for this checkout before reinstalling. Vite holds native dependencies open. Administrator mode is normally unnecessary. |
-| Missing React types, tsx or Vite | Run `npm ci` at the repository root after stopping servers. |
-| Missing fastapi, spiceypy or PIL | Install `backend/requirements.txt` using the same backend/.venv Python used to launch the server. |
-| Missing kernels or dates outside coverage | Read the backend error, restore required files from main and select a supported UTC. Do not silently substitute demo results. |
-| Browser still displays an old failure | Confirm backend health succeeds, then refresh http://127.0.0.1:5173/explorer. |
+| “Ephemeris service unavailable” or “Failed to fetch” | Run `npm run dev:local`, check the settings above, and open the [backend health check](http://127.0.0.1:8000/api/v1/health). Read any Python error in the terminal. |
+| Port 5173 or 8000 is already in use | Stop the previous project servers with Ctrl+C before restarting. |
+| Windows `EPERM` / `lightningcss` error during `npm ci` | Stop the project servers before reinstalling dependencies. |
+| A map is unavailable | Check that its scientific files are present in `modelResources/`; see the [backend reference](backend/README.md). The first terrain calculation can take several minutes. |
 
-## Checks
+## Data and limitations
+
+Moonwalk uses NASA/JPL SPICE data for celestial positions, LOLA data for terrain and permanent shadow, and Diviner measurements for temperature. Local calculations do not require an API key. Keep the supplied scientific files and models in their existing folders.
+
+These are exploratory assessments. Smooth-horizon summaries and terrain-aware maps use different assumptions. Earth visibility does not guarantee a working radio link, and temperature measurements are historical averages rather than forecasts.
+
+If the backend is slow or offline, the site list can use a bundled catalogue. Live geometry, maps and analysis still require the backend.
+
+## For teammates
+
+The frontend uses React, TypeScript, Vite and Three.js. The backend uses Python, FastAPI and SPICE.
+
+Run the frontend checks from the repository folder:
 
 ```sh
 npm test
 npm run build
 ```
 
-Backend tests, from the repository root on Windows:
+To run backend tests on Windows:
 
 ```powershell
 backend/.venv/Scripts/python.exe -m pip install -r backend/requirements-dev.txt
 backend/.venv/Scripts/python.exe -m pytest backend/tests -q
 ```
 
-On macOS/Linux use `backend/.venv/bin/python`. The production build is written to `frontend/dist`. `npm run preview` serves that build but still needs the backend for live features. Production hosting must rewrite client routes to index.html and configure an appropriate API address/CORS policy.
+On macOS/Linux, use `backend/.venv/bin/python` instead.
 
-## Team reference
-
-Start at [docs/README.md](docs/README.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
-
-- `frontend/`: React, TypeScript, Vite, Tailwind CSS, Router, Three.js, Lucide and Recharts.
-- `backend/`: FastAPI, SPICE and scientific data services.
-- `docs/` and `data/`: architecture, contracts, research and provenance.
-
-Use feature branches and pull requests. Do not commit virtual environments, node_modules, private environment files or generated caches.
-
-Landing-site selection uses the live catalogue when available, with a bundled snapshot from `backend/api/catalog.py` if the service is offline or slow. This fallback contains site metadata only; geometry, maps and analysis still require the backend and NASA data.
+- [Team documentation](docs/README.md)
+- [Contribution guide](CONTRIBUTING.md)
+- [Backend and data reference](backend/README.md) · [Local API documentation](http://127.0.0.1:8000/docs)
+- [Backend deployment guide](deploy/huggingface/README.md)

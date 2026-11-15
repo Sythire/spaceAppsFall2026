@@ -9,7 +9,7 @@ function attachMoonModel(node:HTMLElement|null){
   const attributes:Record<string,string>={
     src:'/moon_small.glb',
     alt:'Interactive 3D Moon model made from NASA Lunar Reconnaissance Orbiter imagery and topographic data. Drag or use arrow keys to rotate.',
-    'camera-controls':'','touch-action':'pan-y','interaction-prompt':'none','loading':'eager',
+    'camera-controls':'','disable-pan':'','disable-tap':'','touch-action':'pan-y','interaction-prompt':'none','loading':'eager',
     'shadow-intensity':'0.65','shadow-softness':'0.8','camera-target':'0m 0m 0m',
     'camera-orbit':'25deg 72deg 5.2m','field-of-view':'30deg',
     'min-camera-orbit':'auto auto 2.8m','max-camera-orbit':'auto auto 8m'

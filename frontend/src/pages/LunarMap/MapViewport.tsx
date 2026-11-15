@@ -374,8 +374,6 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
    {!series && !seriesError && <div className="scene-loading">Loading SPICE geometry…</div>}
   </div>
 
-  {equipmentBar}
-
   <section className="scene-timeline panel" aria-label="Time playback">
    <button type="button" onClick={togglePlay} disabled={!series} aria-label={playing ? 'Pause playback' : 'Play playback'}>
     {playing ? <Pause size={14} aria-hidden /> : <Play size={14} aria-hidden />}</button>
@@ -391,6 +389,8 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
    <button type="button" disabled={playhead === 0} onClick={() => { setPlaying(false); onUtcChange(new Date(viewingUtc).toISOString()); }}>
     <CalendarCheck size={12} aria-hidden /> Set as scenario time</button>
   </section>
+
+  {equipmentBar}
 
   <MissionBar value={mission} onChange={setMission} />
 

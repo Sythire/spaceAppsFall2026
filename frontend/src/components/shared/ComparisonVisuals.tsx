@@ -1,10 +1,9 @@
 import {useMemo} from 'react';
 import {ResponsiveContainer,LineChart,Line,BarChart,Bar,XAxis,YAxis,CartesianGrid,Tooltip,ReferenceLine,Legend} from 'recharts';
 import {Panel} from '../ui/Panel';
+import {SITE_SERIES_COLORS as SERIES} from '../../constants/siteColors';
 import type {AnalysisResult} from '../../types';
 
-/** Distinct, light/dark-safe series colours for up to the 3 compared sites. */
-const SERIES=['#6b5bd3','#e0883c','#2f9e8f'];
 const GRID='#cdd3e0',AXIS='#8a93a8';
 
 /** Linear blend of two #rrggbb colours (t in 0..1). */
@@ -24,8 +23,11 @@ const percentColor=(p:number)=>mix('#13214a','#ffcf4a',Math.max(0,Math.min(1,p/1
 
 type Series={id:string;name:string;color:string};
 
-export function ComparisonVisuals({results}:{results:AnalysisResult[]}){
- const series:Series[]=results.map((r,i)=>({id:r.request.location.id,name:r.request.location.name,color:SERIES[i%SERIES.length]}));
+export function ComparisonVisuals({results,order}:{results:AnalysisResult[];order?:string[]}){
+ // Colour each module by its identity (its slot in the selected order), so a module keeps the same colour
+ // in the comparison chips and in every chart/heatmap row even if the results come back in another order.
+ const colorFor=(id:string)=>{const i=order?order.indexOf(id):-1;return SERIES[(i>=0?i:results.findIndex(r=>r.request.location.id===id))%SERIES.length];};
+ const series:Series[]=results.map(r=>({id:r.request.location.id,name:r.request.location.name,color:colorFor(r.request.location.id)}));
  // Each compared site shares the same start, duration and step, so their timelines line up by `hour`.
  const hasElev=results.every(r=>r.illumination.timeline.some(p=>p.sun?.elevationDeg!=null));
  const metricLabel=hasElev?'Sun elevation':'Sunlight';

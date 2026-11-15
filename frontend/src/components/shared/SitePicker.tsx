@@ -1,10 +1,11 @@
-import {useEffect,useId,useRef,useState,type KeyboardEvent} from 'react';
+import {useEffect,useId,useRef,useState,type CSSProperties,type KeyboardEvent} from 'react';
 import {Check,ChevronDown,Plus,Search,X} from 'lucide-react';
 import {siteService} from '../../services/siteService';
 import {useAsync} from '../../hooks/useAsync';
 import {useAppState} from '../../context/AppContext';
 import {AsyncState} from './AsyncState';
 import {isMockMode} from '../../services/apiClient';
+import {siteColor} from '../../constants/siteColors';
 import type {LunarLocation} from '../../types';
 
 /**
@@ -114,6 +115,7 @@ function SiteDropdown({sites}:{sites:LunarLocation[]}){
     <ul className="site-dropdown-list" role="listbox" id={listId} ref={list} aria-label="All modules">
      {shown.map((s,i)=>{
       const on=comparing(s),off=blocked(s),current=location?.id===s.id;
+      const compareIx=on?selectedSites.findIndex(x=>x.id===s.id):-1;
       return <li key={s.id} id={`${listId}-${i}`} data-index={i} role="option" aria-selected={current}
        className={`site-option${i===highlight?' is-highlighted':''}${current?' is-current':''}`}
        onMouseEnter={()=>setHighlight(i)} onMouseDown={e=>e.preventDefault()} onClick={()=>analyse(s)}>
@@ -126,7 +128,8 @@ function SiteDropdown({sites}:{sites:LunarLocation[]}){
          aria-label={current?`${s.name} is being analysed`:`Analyse ${s.name}`}
          onClick={e=>{e.stopPropagation();analyse(s);}}>{current?'Analysing':'Analyse'}</button>
         <button type="button" tabIndex={-1} className={`site-option-add${on?' is-on':''}`} disabled={off}
-         aria-label={on?`Remove ${s.name} from comparison`:`Add ${s.name} to comparison`}
+         style={on?{'--chip':siteColor(compareIx)} as CSSProperties:undefined}
+         aria-label={on?`Remove ${s.name} from comparison (comparison colour ${compareIx+1})`:`Add ${s.name} to comparison`}
          title={off?`Comparison is full (${MAX_COMPARE} modules)`:on?'Remove from comparison':'Add to comparison'}
          onClick={e=>{e.stopPropagation();toggleCompare(s);}}>{on?<Check size={15}/>:<Plus size={15}/>}</button>
        </div>
@@ -140,12 +143,15 @@ function SiteDropdown({sites}:{sites:LunarLocation[]}){
   {location&&<div className="site-grid site-dropdown-selected"><SiteCard site={location} buttons={false}/></div>}
 
   <div className="site-compare-bar" aria-live="polite">
+   {location
+    ?<span className="site-analysing-pill"><span className="site-analysing-dot" aria-hidden="true"/>Analysing now: <strong>{location.name}</strong></span>
+    :<span className="muted">Pick a module to analyse it.</span>}
    {selectedSites.length===0
-    ?<span className="muted">Single-module analysis. Press <b>+</b> on other modules in the list to compare them.</span>
-    :<>
-     <span className="site-compare-label">Comparing {selectedSites.length} / {MAX_COMPARE}{selectedSites.length<2?' · add one more to see the comparison':''}</span>
-     {selectedSites.map(s=><button key={s.id} type="button" className="site-compare-chip" onClick={()=>state.toggleSite(s)} aria-label={`Remove ${s.name} from comparison`}>{s.name}<X size={12} aria-hidden="true"/></button>)}
-    </>}
+    ?<span className="muted">Press <b>+</b> on modules in the list to compare them.</span>
+    :<span className="site-compare-group">
+      <span className="site-compare-label">Comparing {selectedSites.length} / {MAX_COMPARE}{selectedSites.length<2?' · add one more':''}:</span>
+      {selectedSites.map((s,i)=><button key={s.id} type="button" className="site-compare-chip" style={{'--chip':siteColor(i)} as CSSProperties} onClick={()=>state.toggleSite(s)} aria-label={`Remove ${s.name} from comparison`}><span className="site-compare-dot" aria-hidden="true"/>{s.name}<X size={12} aria-hidden="true"/></button>)}
+     </span>}
   </div>
  </div>;
 }

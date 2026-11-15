@@ -142,3 +142,17 @@ body.dark-mode .heatmap-axis{fill:#aaa9c4}
 body.dark-mode .site-option-analyse{border-color:#484364!important;background:#221f33!important;color:#c9c2ff!important}
 body.dark-mode .site-option-analyse:hover{background:#2f2b47!important}
 body.dark-mode .site-option-analyse.is-current{background:#766adc!important;border-color:#766adc!important;color:#fff!important}
+
+/* ---- Compare bar: name the analysing module + colour-tag each compared module (matches charts) ---- */
+.site-compare-bar{align-items:center}
+.site-analysing-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid #cdeadd;border-radius:99px;background:#eafaf2;color:#2c6a56;font-size:11px;font-weight:650}
+.site-analysing-pill strong{color:#1f5a47}
+.site-analysing-dot{width:8px;height:8px;border-radius:50%;background:#34b27b;box-shadow:0 0 0 3px #34b27b33}
+.site-compare-group{display:inline-flex;flex-wrap:wrap;align-items:center;gap:6px 8px}
+.site-compare-chip{position:relative;padding-left:9px!important}
+.site-compare-chip .site-compare-dot{width:9px;height:9px;flex:none;border-radius:50%;background:var(--chip,#8a86a8)}
+.site-compare-chip{border-color:color-mix(in srgb,var(--chip,#d9d4f5) 45%,#d9d4f5)!important}
+.site-option-add.is-on{border-color:var(--chip,#bfe6d5)!important;color:var(--chip,#327461)!important;background:#fff!important}
+body.dark-mode .site-analysing-pill{border-color:#2f5a4b;background:#163329;color:#9fe6c9}
+body.dark-mode .site-analysing-pill strong{color:#c7f3e0}
+body.dark-mode .site-option-add.is-on{background:#221f33!important}

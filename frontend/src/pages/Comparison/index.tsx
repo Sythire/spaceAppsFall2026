@@ -37,7 +37,7 @@ export default function Comparison({embedded=false}:{embedded?:boolean}){
     <thead><tr><th>Metric</th>{resource.data.results.map(r=><th key={r.request.location.id}>{r.request.location.name}</th>)}</tr></thead>
     <tbody>{rows.map(row=><tr key={row.label}><th>{row.label}</th>{resource.data!.results.map(r=><td key={r.request.location.id}>{row.value(r)}</td>)}</tr>)}</tbody>
    </table></div><p className="muted">Percentages describe each full analysis interval. This table uses a smooth Moon; the terrain-aware table below includes shadows. Ground-station contacts and radio link budgets are not included.</p></>}
-   {resource.data&&resource.data.results.length>=2&&<ComparisonVisuals results={resource.data.results}/>}
+   {resource.data&&resource.data.results.length>=2&&<ComparisonVisuals results={resource.data.results} order={selectedSites.map(s=>s.id)}/>}
    <TerrainComparison sites={selectedSites} utc={utc} days={durationHours/24}/>
   </Panel>
  </>;

@@ -91,3 +91,11 @@ body.dark-mode .grade-unknown{color:#e6e6e6;background:#000;border-color:#000;bo
 .metric.graded-unknown{border:2px solid #000!important;box-shadow:inset 3px 0 0 #000}
 .metric.graded-irrelevant{border-color:#9aa3ad!important;box-shadow:none;opacity:.85}
 body.dark-mode .metric.graded-unknown{box-shadow:inset 3px 0 0 #000,0 0 0 1px #ffffff40}
+/* Overlays on the 3D view sit on a dark translucent panel in both themes, so they set their own light text
+   instead of inheriting the page's (dark, in light mode) body colour. */
+.scene-viewport .scene-toggles,.scene-viewport .scene-toggles label{color:#dbe5ef}
+.scene-viewport .scene-toggles .checkbox input{accent-color:#8f86ff}
+/* The playback bar sits on the page background (white in light mode): keep its time readable in both themes. */
+.scene-timeline .scene-slider strong{color:inherit;font-weight:700}
+.scene-timeline .scene-slider{color:#55527a}
+body.dark-mode .scene-timeline .scene-slider{color:#b9c8d6}

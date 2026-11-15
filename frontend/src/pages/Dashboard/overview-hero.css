@@ -1,6 +1,6 @@
 .home-page .overview-hero { grid-template-columns: 1.1fr 1fr; }
 .home-page .overview-hero .welcome-copy { padding: 36px; }
-.home-page .overview-hero .hello-pill { font-size: 10px; letter-spacing: .7px; }
+.home-page .overview-hero .hello-pill { font-size: 11px; letter-spacing: .7px; }
 .home-page .overview-hero .welcome-copy h2 {
   margin: 20px 0 18px;
   font-size: clamp(36px, 4vw, 50px);
@@ -18,18 +18,13 @@
 .home-page .overview-hero .welcome-copy p {
   max-width: 440px;
   color: #eeebff;
-  font-size: 14px;
-  line-height: 1.75;
+  font-size: 16px;
+  line-height: 1.7;
 }
-.home-page .overview-hero .welcome-copy .overview-purpose { margin-top: 13px; color: #dcd7f8; }
-.overview-focus { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
-.overview-focus span {
-  padding: 5px 10px;
-  border: 1px solid #d9d2ff38;
-  border-radius: 99px;
-  color: #eeeaff;
-  font-size: 11px;
-  line-height: 1.5;
+.home-page .overview-hero .welcome-copy .overview-purpose { margin-top: 16px; color: #dcd7f8; }
+.home-page .overview-hero .welcome-copy p strong {
+  color: #fff5db;
+  font-weight: 650;
 }
 .home-page .overview-hero .welcome-art { min-height: 440px; }
 .home-page .overview-hero .art-caption {

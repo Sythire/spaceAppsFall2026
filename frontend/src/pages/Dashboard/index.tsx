@@ -1,7 +1,6 @@
 import {createElement} from 'react';
 import {Link} from 'react-router';
 import {ArrowRight,Compass,Orbit,Sparkles,Rotate3d} from 'lucide-react';
-import {MockNotice} from '../../components/shared/AsyncState';
 import {VirtualMoonTour} from '../../components/shared/VirtualMoonTour';
 import './overview-hero.css';
 
@@ -12,7 +11,7 @@ function attachMoonModel(node:HTMLElement|null){
     alt:'Interactive 3D Moon model made from NASA Lunar Reconnaissance Orbiter imagery and topographic data. Drag or use arrow keys to rotate.',
     'camera-controls':'','touch-action':'pan-y','interaction-prompt':'none','loading':'eager',
     'shadow-intensity':'0.65','shadow-softness':'0.8','camera-target':'0m 0m 0m',
-    'camera-orbit':'25deg 72deg 4.8m','field-of-view':'30deg',
+    'camera-orbit':'25deg 72deg 5.2m','field-of-view':'30deg',
     'min-camera-orbit':'auto auto 2.8m','max-camera-orbit':'auto auto 8m'
   };
   for(const [name,value] of Object.entries(attributes))node.setAttribute(name,value);
@@ -20,15 +19,13 @@ function attachMoonModel(node:HTMLElement|null){
 function MoonGlobe(){return createElement('model-viewer',{ref:attachMoonModel,className:'nasa-moon-model'})}
 
 export default function Dashboard(){return <div className="home-page">
-  <MockNotice/>
   <section className="welcome-hero overview-hero" aria-labelledby="overview-moon-title">
     <div className="welcome-copy">
-      <span className="hello-pill"><Sparkles size={14} aria-hidden/> THE LANDING-SITE CHALLENGE</span>
+      <span className="hello-pill"><Sparkles size={14} aria-hidden/> LUNAR LANDING-SITE NAVIGATOR</span>
       <h2 id="overview-moon-title">Meet the Moon.</h2>
       <h3 className="overview-problem">Where you land matters.<br/>So does when.</h3>
-      <p className="overview-challenge">Crater shadows limit sunlight. Terrain can block the view of Earth.</p>
-      <p className="overview-purpose">We’re building a lunar navigator to compare terrain, solar exposure and Earth visibility—helping teams explore better sites and operating windows.</p>
-      <div className="overview-focus" aria-label="Planning considerations"><span>Terrain</span><span>Sunlight</span><span>Earth visibility</span></div>
+      <p className="overview-introduction"><strong>Moonwalk</strong> helps you explore possible landing sites on the Moon and see how conditions change with the date and time.</p>
+      <p className="overview-purpose">Compare <strong>terrain</strong> for landing, <strong>sunlight</strong> for solar power, and <strong>Earth visibility</strong> for communication.</p>
     </div>
     <div className="welcome-art">
       <div className="moon-orbit" aria-hidden="true"><span/></div>

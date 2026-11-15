@@ -9,8 +9,9 @@ const h = (x: number) => (x >= 48 ? `${(x / 24).toFixed(1)} d` : `${x.toFixed(0)
 const ROWS: Row[] = [
  { label: 'Sunlit (terrain-aware)', value: c => c.summary.sunlitPct.toFixed(1) + '%' },
  { label: 'Longest darkness', value: c => h(c.summary.longestDarkHours) },
- { label: 'Mean panel power', value: c => c.summary.meanPowerWm2.toFixed(0) + ' W/m²' },
- { label: 'Panel energy', value: c => c.summary.energyKWhPerM2.toFixed(0) + ' kWh/m²' },
+ { label: 'Mean electrical output', value: c => c.summary.meanElectricalWm2.toFixed(0) + ' W/m²' },
+ { label: 'Electrical energy', value: c => c.summary.electricalKWhPerM2.toFixed(1) + ' kWh/m²' },
+ { label: 'Mean incident sunlight', value: c => c.summary.meanPowerWm2.toFixed(0) + ' W/m²' },
  { label: 'Earth in view (terrain-aware)', value: c => c.summary.earthVisiblePct.toFixed(1) + '%' },
  { label: 'Longest comm outage', value: c => h(c.summary.longestCommOutageHours) },
  { label: 'Local slope (LOLA)', value: c => c.slopeDeg.toFixed(1) + '°' },
@@ -29,7 +30,7 @@ export function TerrainComparison({ sites, utc, days }: { sites: LunarLocation[]
  if (sites.length < 2) return null;
  return <section className="terrain-comparison">
   <h3>Terrain-aware power, communication, shadow and temperature</h3>
-  <p className="muted">Over {span} days from the start time · panel tilt {equipment.panelTiltDeg}° at {equipment.panelHeightM} m · receiver needs Earth ≥ {equipment.commMaskDeg}° at {equipment.commHeightM} m (set on the Lunar Explorer page).</p>
+  <p className="muted">Over {span} days from the start time · panel tilt {equipment.panelTiltDeg}° at {equipment.panelHeightM} m, {equipment.panelEfficiencyPct}% efficient · receiver needs Earth ≥ {equipment.commMaskDeg}° at {equipment.commHeightM} m (set on the Lunar Explorer page).</p>
   {r.loading && <p className="muted">Computing terrain horizons for each site…</p>}
   {r.error && <p role="alert">{r.error} <button type="button" onClick={r.retry}>Retry</button></p>}
   {r.data && <div className="table-scroll"><table>

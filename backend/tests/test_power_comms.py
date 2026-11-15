@@ -68,7 +68,8 @@ def test_panel_cosine_for_tilt_and_sun_elevation():
 
 
 @pytest.mark.parametrize("kwargs", [dict(panel_tilt_deg=-1), dict(panel_tilt_deg=91), dict(comm_mask_deg=95),
-                                    dict(panel_height_m=-1), dict(comm_height_m=5000)])
+                                    dict(panel_height_m=-1), dict(comm_height_m=5000),
+                                    dict(panel_efficiency_pct=0), dict(panel_efficiency_pct=101)])
 def test_equipment_validation(kwargs):
     with pytest.raises(ValueError):
         pc.Equipment(**kwargs).validate()
@@ -140,7 +141,7 @@ def _decode(m):
 
 def test_instant_maps(tiny_grid):
     t = datetime(2026, 11, 20, 23, 5, tzinfo=UTC)  # local noon-ish at Apollo 11
-    power = _decode(pc.coverage_map("global", "power", "instant", t, pc.Equipment()))
+    power = _decode(pc.coverage_map("global", "power", "instant", t, pc.Equipment(panel_efficiency_pct=100)))
     comms = _decode(pc.coverage_map("global", "comms", "instant", t, pc.Equipment()))
     assert 1000 < power[0, 0] < 1400              # high Sun at Apollo 11
     assert comms[0, 0] > 40                        # Earth high above the horizon at Apollo 11
@@ -167,3 +168,25 @@ def test_polar_grid_cells_lie_inside_the_cap():
     assert shape == (64, 64)
     assert np.all(lat[valid] <= horizon.POLAR_CAP_LAT + 1e-9)
     assert lat.min() > -90 and valid.sum() > 0.7 * 64 * 64   # inscribed disc ≈ 78.5% of the square
+
+
+def test_efficiency_scales_electrical_output_only(apollo11):
+    s = apollo11["summary"]
+    assert s["panelEfficiencyPct"] == 30.0                         # documented default
+    assert s["meanElectricalWm2"] == pytest.approx(0.30 * s["meanPowerWm2"])
+    assert s["electricalKWhPerM2"] == pytest.approx(0.30 * s["energyKWhPerM2"])
+    ser = apollo11["series"]
+    assert np.allclose(ser["electricalWm2"], 0.30 * np.array(ser["powerWm2"]))
+
+
+def test_power_map_is_electrical_and_scales_with_efficiency(tiny_grid):
+    t = datetime(2026, 11, 20, 23, 5, tzinfo=UTC)
+    full = _decode(pc.coverage_map("global", "power", "instant", t, pc.Equipment(panel_efficiency_pct=100)))
+    quarter = _decode(pc.coverage_map("global", "power", "instant", t, pc.Equipment(panel_efficiency_pct=25)))
+    assert quarter[0, 0] == pytest.approx(0.25 * full[0, 0], rel=1e-5)
+
+
+def test_longest_sunlit_stretch(apollo11):
+    s = apollo11["summary"]
+    assert 300 < s["longestSunlitHours"] < 370       # one lunar day at the equator (~354 h)
+    assert s["longestSunlitHours"] + s["longestDarkHours"] <= 30 * 24 + 1

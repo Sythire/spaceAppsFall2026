@@ -28,9 +28,15 @@ MODEL_FILES = {
 }
 
 app = FastAPI(title="LunarSite ephemeris service", version="0.1.0")
+# Local dev servers, plus any deployed frontend: extra exact origins via CORS_ORIGINS (comma-separated) and
+# a pattern via CORS_ORIGIN_REGEX (default: Vercel production and preview URLs). The API is public and
+# read-only with no cookies or auth, so allowing other origins exposes nothing.
+_LOCAL_ORIGINS = ["http://127.0.0.1:5173", "http://localhost:5173", "http://127.0.0.1:4173"]
+_EXTRA_ORIGINS = [o.strip().rstrip("/") for o in os.environ.get("CORS_ORIGINS", "").split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://127.0.0.1:5173", "http://localhost:5173", "http://127.0.0.1:4173"],
+    allow_origins=_LOCAL_ORIGINS + _EXTRA_ORIGINS,
+    allow_origin_regex=os.environ.get("CORS_ORIGIN_REGEX", r"https://[a-z0-9-]+\.vercel\.app"),
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )

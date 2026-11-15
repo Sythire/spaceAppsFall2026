@@ -12,7 +12,7 @@ import {VisibilityWindows} from '../../components/shared/VisibilityWindows';
 import Comparison from '../Comparison';
 
 export default function Analysis(){
- const {location,utc,durationHours,stepHours,setAnalysis,selectedSites,toggleSite}=useAppState();
+ const {location,utc,durationHours,stepHours,setAnalysis,selectedSites}=useAppState();
  const load=useCallback(()=>location?analysisService.analyze({location,utc,durationHours,stepHours}):Promise.resolve(null),[location,utc,durationHours,stepHours]);
  const resource=useAsync(load);
  useEffect(()=>{setAnalysis(resource.data??null);},[resource.data,setAnalysis]);
@@ -21,11 +21,11 @@ export default function Analysis(){
  return <>
   <MockNotice/>
   <div className="page-heading"><span className="eyebrow">LANDING-SITE CONDITIONS</span><h2>Understand your landing site.</h2><p>Choose a location and time to compare sunlight, terrain and Earth visibility.</p></div>
-  <Panel title="Choose a location"><SitePicker/><p className="muted">For a custom site, choose a point in the <Link to="/explorer">Lunar Explorer</Link>, then return here.</p></Panel>
+  <Panel title="Choose a location"><SitePicker layout="dropdown"/><p className="muted">For a custom site, choose a point in the <Link to="/explorer">Lunar Explorer</Link>, then return here.</p></Panel>
   <Panel title={location?`Scenario · ${location.name}`:'Scenario'}>
    <ScenarioControls/>
    {location&&<p className="muted">{location.latitudeDeg}° N / {location.longitudeDeg}° E · MOON_ME</p>}
-   {location&&<div className="button-row"><button type="button" aria-pressed={selectedSites.some(s=>s.id===location.id)} disabled={selectedSites.length===3&&!selectedSites.some(s=>s.id===location.id)} onClick={()=>toggleSite(location)}>{selectedSites.some(s=>s.id===location.id)?'Remove from comparison':'Add to comparison'}</button><Link to="/comparison">Compare sites →</Link></div>}
+   {location&&<div className="button-row"><Link to="/comparison">Open full comparison →</Link>{selectedSites.length>=2&&<span className="muted">Comparing {selectedSites.length} modules below.</span>}</div>}
    <AsyncState {...resource}/>
    {!location&&<p className="muted">Choose a site to see its conditions.</p>}
    {result&&<>
@@ -47,6 +47,6 @@ export default function Analysis(){
     <details><summary>Sources, methods and limitations</summary><p className="muted">{result.source}</p>{result.interval&&<p className="muted">{result.interval.startUtc} → {result.interval.endUtc} · {result.interval.sampleCount} chart samples</p>}{result.metadata&&<><p className="muted">{result.metadata.horizonMethod}</p><ul>{result.metadata.limitations.map(note=><li key={note}>{note}</li>)}</ul><p className="muted">Frame: {result.metadata.provenance.frameRealization}</p><ul>{result.metadata.provenance.kernels.map(k=><li key={k.file}><a href={k.url}>{k.file}</a></li>)}</ul></>}</details>
    </>}
   </Panel>
-  <section className="research-step"><div className="section-heading"><div><span className="eyebrow">SIDE BY SIDE</span><h2>Compare landing sites</h2></div></div><Comparison embedded/></section>
+  {selectedSites.length>=2&&<section className="research-step"><div className="section-heading"><div><span className="eyebrow">SIDE BY SIDE</span><h2>Compare landing sites</h2></div></div><Comparison embedded/></section>}
  </>;
 }

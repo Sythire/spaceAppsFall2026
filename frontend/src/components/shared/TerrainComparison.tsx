@@ -27,15 +27,18 @@ export function TerrainComparison({ sites, utc, days }: { sites: LunarLocation[]
   coverageService.site(s.latitudeDeg, s.longitudeDeg, utc, equipment, span), sceneService.site(s.latitudeDeg, s.longitudeDeg, utc),
  ]))), [sites, utc, equipment, span]);
  const r = useAsync(load);
+ // After a site is added or removed, r.data still holds the previous run's results until the new load
+ // finishes. Only render results that line up one-to-one with the current sites.
+ const results = r.data && r.data.length === sites.length ? r.data : null;
  if (sites.length < 2) return null;
  return <section className="terrain-comparison">
   <h3>Terrain, power & Earth visibility</h3>
   <p className="muted">Over {span} days from the start time · panel tilt {equipment.panelTiltDeg}° at {equipment.panelHeightM} m, {equipment.panelEfficiencyPct}% efficient · receiver needs Earth ≥ {equipment.commMaskDeg}° at {equipment.commHeightM} m (set on the Lunar Explorer page).</p>
-  {r.loading && <p className="muted">Calculating terrain conditions…</p>}
+  {(r.loading || (r.data && !results)) && <p className="muted">Calculating terrain conditions…</p>}
   {r.error && <p role="alert">{r.error} <button type="button" onClick={r.retry}>Retry</button></p>}
-  {r.data && <div className="table-scroll"><table>
+  {results && <div className="table-scroll"><table>
    <thead><tr><th>Metric</th>{sites.map(s => <th key={s.id}>{s.name}</th>)}</tr></thead>
-   <tbody>{ROWS.map(row => <tr key={row.label}><th>{row.label}</th>{r.data!.map(([c, g], i) => <td key={sites[i].id}>{row.value(c, g)}</td>)}</tr>)}</tbody>
+   <tbody>{ROWS.map(row => <tr key={row.label}><th>{row.label}</th>{results.map(([c, g], i) => <td key={sites[i].id}>{row.value(c, g)}</td>)}</tr>)}</tbody>
   </table></div>}
   <p className="muted">LOLA terrain horizons (1.9 km DEM), SPICE geometry, official LOLA PSR map, LRO Diviner 2010 temperatures. Line of sight only for communication; panel power before conversion losses.</p>
  </section>;

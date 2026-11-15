@@ -86,6 +86,24 @@ body.dark-mode .presentation-main .metric-earth { background: #27243c; border-co
 .presentation-main .chart { min-width: 0; }
 .presentation-main .recharts-cartesian-axis-tick-value { font-size: 12px; }
 .presentation-main .recharts-default-tooltip { border-radius: 12px; box-shadow: 0 6px 20px #302b6f18; font-size: 12px; }
+.presentation-main .site-dropdown { max-width: 800px; }
+.presentation-main .site-dropdown-label { font-size: 10px; }
+.presentation-main .site-dropdown-trigger { min-height: 50px; }
+.presentation-main .site-dropdown-help { margin: 10px 4px; color: var(--text-secondary); font-size: 12px; }
+.presentation-main .site-dropdown-search input { padding: 10px 0; border: 0; background: transparent; }
+.presentation-main .site-option { margin: 0; padding: 12px 10px; }
+.presentation-main .site-option-name { font-size: 14px; }
+.presentation-main .site-option-meta { margin-top: 5px; font-size: 12px; }
+.presentation-main .site-row-kind { font-size: 10px; letter-spacing: .3px; }
+.presentation-main .site-option-primary { color: var(--purple); font-size: 11px; font-weight: 650; }
+.presentation-main .site-option[aria-disabled='true'] { cursor: not-allowed; opacity: .55; }
+.presentation-main .site-compare-chip { max-width: 100%; padding: 8px 12px !important; font-size: 12px !important; white-space: normal; text-align: left; }
+.presentation-main .site-compare-chip > svg { flex-shrink: 0; }
+.presentation-main .site-compare-label { font-size: 13px; }
+.presentation-main .site-compare-primary { font-style: normal; font-size: 11px; }
+.presentation-main .comparison-visuals { gap: 18px; margin-top: 24px; }
+.presentation-main .heatmap-scroll { max-width: 100%; overflow-x: auto; }
+.presentation-main .heatmap-scroll > svg { display: block; min-width: 720px; }
 
 /* Explorer: retain its map and controls, soften the panels around them. */
 .presentation-main .map-layout { grid-template-columns: 250px minmax(0, 1fr); gap: 20px; align-items: start; }

@@ -7,7 +7,23 @@ whatever listens on port 7860. This script:
   2. installs any terrain-horizon cache files uploaded next to it (horizon_*.npz) so startup takes seconds
      instead of ~10 minutes; without them the cache is computed on first boot,
   3. warms both analysis grids and starts uvicorn on 0.0.0.0:7860.
+
+ZeroGPU hardware: the platform refuses to start unless the app registers at least one @spaces.GPU function
+and sends ZeroGPU's startup report. The backend needs no GPU, so a placeholder function is registered (it is
+never called, so no GPU quota is used) and the FastAPI app is wrapped in spaces' ZeroGPUMiddleware, which sends
+the report when the server starts. On CPU hardware (or locally) both steps are no-ops.
 """
+try:
+    import spaces  # must be imported before anything that could touch CUDA
+except ImportError:  # running outside Hugging Face
+    spaces = None
+
+if spaces is not None:
+    @spaces.GPU
+    def _zerogpu_placeholder():
+        """Never called: satisfies ZeroGPU's startup check that at least one GPU function exists."""
+        return None
+
 import glob
 import os
 import re
@@ -47,5 +63,10 @@ horizon.get_grid("global")
 horizon.get_grid("southpole")
 
 import uvicorn  # noqa: E402
+from api.main import app  # noqa: E402
 
-uvicorn.run("api.main:app", host="0.0.0.0", port=int(os.environ.get("PORT", "7860")))
+if spaces is not None:
+    from spaces.zero import ZeroGPUMiddleware  # sends ZeroGPU's startup report; passthrough elsewhere
+    app = ZeroGPUMiddleware(app)
+
+uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", "7860")))

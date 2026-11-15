@@ -78,6 +78,10 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
  const profile = profileById(mission);
  const [terrain, setTerrain] = useState<TerrainGrid | null>(null);
  const [terrainState, setTerrainState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+ const [terrainAttempt, retryTerrain] = useState(0);
+ const [psrAttempt, retryPsr] = useState(0);
+ const [thermalAttempt, retryThermal] = useState(0);
+ const [coverageAttempt, retryCoverage] = useState(0);
  const elevationOn = layers.includes('elevation');
  const illuminationOn = layers.includes('illumination');
  const [models, setModels] = useState<ModelStatus | null>(null);
@@ -142,12 +146,14 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
 
  // Data layers. The LOLA grid is fetched once, the first time Elevation is switched on.
  useEffect(() => {
-  if (!elevationOn || terrain || terrainState === 'loading') return;
+  if (!elevationOn || terrain) return;
+  let current = true;
   setTerrainState('loading');
   sceneService.elevation(1440)
-   .then(g => { setTerrain(g); setTerrainState('ready'); })
-   .catch(() => setTerrainState('error'));
- }, [elevationOn, terrain, terrainState]);
+   .then(g => { if (current) { setTerrain(g); setTerrainState('ready'); } })
+   .catch(() => { if (current) setTerrainState('error'); });
+  return () => { current = false; };
+ }, [elevationOn, terrain, terrainAttempt]);
  useEffect(() => { if (terrain) engineRef.current?.setTerrain(terrain); }, [terrain]);
  useEffect(() => { engineRef.current?.setExaggeration(exaggeration); }, [exaggeration]);
  useEffect(() => { engineRef.current?.setLayers(layers); }, [layers]);
@@ -193,7 +199,8 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
   const id = setTimeout(() => {
    for (const layer of activeCoverage) {
     const kind = COVERAGE_KIND[layer];
-    setCoverage(c => ({ ...c, [layer]: { ...c[layer], status: 'loading', error: '' } }));
+    engineRef.current?.setCoverage(layer, null);
+    setCoverage(c => ({ ...c, [layer]: { status: 'loading', error: '', meta: null } }));
     Promise.all([
      coverageService.map('global', kind, coverageMode, coverageTime, equipment),
      coverageService.map('southpole', kind, coverageMode, coverageTime, equipment),
@@ -212,28 +219,32 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
   }, 400);
   return () => { current = false; clearTimeout(id); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
- }, [coverageKey, coverageMode, coverageTime, equipment, playing]);
+ }, [coverageKey, coverageMode, coverageTime, equipment, playing, coverageAttempt]);
 
  // Measured products: LOLA permanent shadow (fetched once) and Diviner temperature (per product).
  useEffect(() => {
-  if (!psrOn || psr.status === 'loading' || psr.status === 'ready') return;
+  if (!psrOn || psr.meta) return;
+  let current = true;
   setPsr({ status: 'loading', meta: null, error: '' });
   coverageService.psr().then(m => {
+   if (!current) return;
    engineRef.current?.setCoverage('psr', { global: null, polar: { width: m.width, height: m.height, rgba: psrRgba(decodeF32(m.valuesF32)), capLatDeg: m.capLat, rhoMaxM: m.rhoMaxM } });
    setPsr({ status: 'ready', meta: m, error: '' });
-  }).catch((e: unknown) => setPsr({ status: 'error', meta: null, error: e instanceof Error ? e.message : 'Unable to load PSR map' }));
- }, [psrOn, psr.status]);
+  }).catch((e: unknown) => { if (current) setPsr({ status: 'error', meta: null, error: e instanceof Error ? e.message : 'Unable to load shadow map' }); });
+  return () => { current = false; };
+ }, [psrOn, psr.meta, psrAttempt]);
  useEffect(() => {
   if (!thermalOn) return;
   let current = true;
-  setThermal(t => ({ ...t, status: 'loading', error: '' }));
+  engineRef.current?.setCoverage('thermal', null);
+  setThermal({ meta: null, status: 'loading', error: '' });
   coverageService.thermal(thermalProduct).then(m => {
    if (!current) return;
    engineRef.current?.setCoverage('thermal', { global: { width: m.width, height: m.height, rgba: colorize(decodeF32(m.valuesF32), thermalSpec(), 200) }, polar: null });
    setThermal({ status: 'ready', meta: m, error: '' });
   }).catch((e: unknown) => { if (current) setThermal({ status: 'error', meta: null, error: e instanceof Error ? e.message : 'Unable to load Diviner map' }); });
   return () => { current = false; };
- }, [thermalOn, thermalProduct]);
+ }, [thermalOn, thermalProduct, thermalAttempt]);
 
  // Terrain-aware rise/set times for the viewed time (refreshed when paused).
  useEffect(() => {
@@ -290,8 +301,6 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
   return `With terrain${body === 'earth' && equipment.commMaskDeg ? ` & ${equipment.commMaskDeg}° mask` : ''}: ${e.up ? 'in view' : 'blocked'} · ${when && countdown ? `${what} in ${countdown}` : `no ${what} within ${events!.searchWindowDays} days`}`;
  };
 
- const modelNote = models && Object.entries(models).filter(([, s]) => s !== 'model')
-  .map(([k, s]) => `${k}: ${s === 'loading' ? 'loading model…' : 'reference sphere (GLB not found)'}`).join(' · ');
 
  return <div className="scene-wrap">
   <div className="map-viewport scene-viewport" ref={containerRef} role="application"
@@ -311,9 +320,9 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
    </div>
    {(elevationOn || illuminationOn || activeCoverage.length > 0 || psrOn || thermalOn) && <div className="layer-legends">
     {elevationOn && <div className="layer-legend">
-     <strong>Elevation (LOLA)</strong>
-     {terrainState === 'loading' && <span>Loading LOLA heights…</span>}
-     {terrainState === 'error' && <span role="alert">Elevation data unavailable (is ldem_16_uint.tif in modelResources?)</span>}
+     <strong>Terrain elevation</strong>
+     {terrainState === 'loading' && <span>Loading terrain…</span>}
+     {terrainState === 'error' && <><span role="alert">Terrain map unavailable.</span><button type="button" onClick={() => retryTerrain(n => n + 1)}>Retry terrain</button></>}
      {terrainState === 'ready' && <>
       <div className="legend-bar" style={{ background: `linear-gradient(90deg, ${ELEVATION_STOPS.map(([h, c]) => `${c} ${((h + 9000) / 19700) * 100}%`).join(', ')})` }} />
       <div className="legend-scale positioned"><span style={{ left: '0%' }}>−9 km</span><span style={{ left: '45.7%' }}>0</span><span style={{ left: '100%' }}>+10.7 km</span></div>
@@ -329,7 +338,7 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
      return <div className="layer-legend" key={layer}>
       <strong>{title} · {coverageMode === 'instant' ? 'now' : 'monthly average'}</strong>
       {st.status === 'loading' && <span>Computing… (the very first run builds the terrain-horizon cache and can take several minutes)</span>}
-      {st.status === 'error' && <span role="alert">{st.error}</span>}
+      {st.status === 'error' && <><span role="alert">{st.error}</span><button type="button" onClick={() => retryCoverage(n => n + 1)}>Retry map</button></>}
       {st.meta && <>
        <div className="legend-bar" style={{ background: spec.blockedBelowZero ? `linear-gradient(90deg, ${BLOCKED_COLOR} 0%, ${BLOCKED_COLOR} 18%, transparent 18%), ${cssGradient(spec.stops)}` : cssGradient(spec.stops) }} />
        <div className="legend-scale">{spec.blockedBelowZero ? <><span>Blocked</span><span>0°</span><span>≥{spec.max}°</span></> : <><span>{spec.min} {spec.unit}</span><span>{spec.max} {spec.unit}</span></>}</div>
@@ -338,22 +347,22 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
      </div>;
     })}
     {thermalOn && <div className="layer-legend">
-     <strong>Surface temperature · Diviner (measured)</strong>
+     <strong>Surface temperature · measured</strong>
      <label>Show<select value={thermalProduct} onChange={e => setThermalProduct(e.target.value as ThermalProduct)}>
       <option value="daymax">Daytime maximum</option><option value="nightmin">Night-time minimum</option></select></label>
-     {thermal.status === 'loading' && <span>Loading Diviner maps…</span>}
-     {thermal.status === 'error' && <span role="alert">{thermal.error}</span>}
+     {thermal.status === 'loading' && <span>Loading temperature…</span>}
+     {thermal.status === 'error' && <><span role="alert">{thermal.error}</span><button type="button" onClick={() => retryThermal(n => n + 1)}>Retry temperature</button></>}
      <div className="legend-bar" style={{ background: cssGradient(thermalSpec().stops) }} />
      <div className="legend-scale"><span>{THERMAL_MIN_K} K</span><span>{(THERMAL_MIN_K + THERMAL_MAX_K) / 2} K</span><span>{THERMAL_MAX_K} K</span></div>
-     {thermal.meta && <small>{thermal.meta.label} · {thermal.meta.cycles.day} day / {thermal.meta.cycles.night} night cycles · {thermal.meta.cellKm} km cells · LRO Diviner GDR L3 (PDS)</small>}
+     {thermal.meta && <small>Measured cycle averages · {thermal.meta.cellKm} km resolution</small>}
     </div>}
     {psrOn && <div className="layer-legend">
-     <strong>Permanent shadow · LOLA PSR (official)</strong>
+     <strong>Permanent shadow</strong>
      {psr.status === 'loading' && <span>Loading PSR map…</span>}
-     {psr.status === 'error' && <span role="alert">{psr.error}</span>}
+     {psr.status === 'error' && <><span role="alert">{psr.error}</span><button type="button" onClick={() => retryPsr(n => n + 1)}>Retry shadow map</button></>}
      <div className="legend-bar" style={{ background: `linear-gradient(90deg, transparent 0%, ${PSR_COLOR}88 30%, ${PSR_COLOR} 100%)` }} />
      <div className="legend-scale"><span>Sunlit at times</span><span>Permanently shadowed</span></div>
-     {psr.meta && <small>75°S to the pole · {psr.meta.cellKm.toFixed(1)} km cells (opacity = shadowed share) · NASA GSFC/LOLA, Mazarico et al. 2011</small>}
+     {psr.meta && <small>South of 75°S · opacity shows shadowed area</small>}
     </div>}
     {illuminationOn && <div className="layer-legend">
      <strong>Illumination · solar elevation</strong>
@@ -397,7 +406,7 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
   <section className="panel scene-readout" aria-live="polite">
    <div className="scene-readout-head">
     <h2>{location ? location.name : 'No site selected'}</h2>
-    <span className="muted">{location ? fmtLatLon(location.latitudeDeg, location.longitudeDeg) + ' · MOON_ME' : 'Click the Moon, a site ping, or enter coordinates.'}</span>
+    <span className="muted">{location ? fmtLatLon(location.latitudeDeg, location.longitudeDeg) : 'Click the Moon, a site ping, or enter coordinates.'}</span>
    </div>
    <div className="readout-grid">
     <article className={'metric metric-sun' + gradeClass(profile)}><span>Solar elevation</span>
@@ -410,30 +419,23 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
      {location && terrainEvent('earth', ['Earthset', 'Earthrise']) && <small className="terrain-event">{terrainEvent('earth', ['Earthset', 'Earthrise'])}</small>}</article>
     <article className={'metric' + gradeClass(profile)}><span>Ideal horizontal panel</span>
      <strong>{siteGeo && !playing ? siteGeo.power.horizontalPanelWm2.toFixed(0) + ' W/m²' : '—'}</strong>
-     <small>{siteGeo ? `Solar flux ${siteGeo.power.solarFluxWm2.toFixed(0)} W/m² · ${siteGeo.power.assumptions}` : 'Needs a selected site'}</small></article>
+     <small>{siteGeo ? `Solar flux ${siteGeo.power.solarFluxWm2.toFixed(0)} W/m²` : 'Needs a selected site'}</small></article>
     <article className={'metric' + gradeClass(profile)}><span>Sub-solar · sub-Earth point</span>
      <strong className="small-strong">{subSolar ? fmtLatLon(subSolar.lat, subSolar.lon) : '—'}</strong>
-     <small>Sub-Earth {subEarth ? fmtLatLon(subEarth.lat, subEarth.lon) : '—'} · offset from 0°,0° is libration</small></article>
-    <article className={'metric' + gradeClass(profile, gradeMetric(profile, 'slope', siteGeo?.terrain?.regionalSlopeDeg).grade) + (siteGeo?.terrain ? '' : ' metric-unavailable')}><span>Terrain · LOLA</span>
+     <small>Sub-Earth {subEarth ? fmtLatLon(subEarth.lat, subEarth.lon) : '—'}</small></article>
+    <article className={'metric' + gradeClass(profile, gradeMetric(profile, 'slope', siteGeo?.terrain?.regionalSlopeDeg).grade) + (siteGeo?.terrain ? '' : ' metric-unavailable')}><span>Terrain</span>
      <strong className="small-strong">{siteGeo?.terrain ? `Slope ${siteGeo.terrain.regionalSlopeDeg.toFixed(1)}°` : location ? 'Not available' : '—'}</strong>
      <small>{siteGeo?.terrain
       ? `Elevation ${(siteGeo.terrain.elevationM / 1000).toFixed(2)} km · slope over ~${siteGeo.terrain.baselineKm.toFixed(1)} km (lander-scale slopes can be steeper)`
-      : 'Elevation and regional slope need the LOLA DEM.'}</small><GradeBadge result={gradeMetric(profile, 'slope', siteGeo?.terrain?.regionalSlopeDeg)} /></article>
-    <article className={'metric' + gradeClass(profile, gradeMetric(profile, 'dayMaxTemp', siteGeo?.thermal?.dayMaxK).grade)}><span>Temperature · Diviner</span>
+      : 'Select a site to view terrain.'}</small><GradeBadge result={gradeMetric(profile, 'slope', siteGeo?.terrain?.regionalSlopeDeg)} /></article>
+    <article className={'metric' + gradeClass(profile, gradeMetric(profile, 'dayMaxTemp', siteGeo?.thermal?.dayMaxK).grade)}><span>Temperature</span>
      <strong className="small-strong">{siteGeo?.thermal?.dayMaxK != null ? `${siteGeo.thermal.dayMaxK.toFixed(0)} K / ${siteGeo.thermal.nightMinK?.toFixed(0) ?? '—'} K` : location ? 'Not available' : '—'}</strong>
-     <small>{siteGeo?.thermal ? 'Day max / night min of 2010 cycle averages (measured, ~7.6 km cells); not a forecast for this time' : 'Needs the Diviner maps in modelResources/diviner'}</small><GradeBadge result={gradeMetric(profile, 'dayMaxTemp', siteGeo?.thermal?.dayMaxK)} /></article>
-    <article className={'metric' + (siteGeo?.terrain?.permanentlyShadowed ? ' metric-psr' : '') + gradeClass(profile)}><span>Permanent shadow · LOLA</span>
+     <small>{siteGeo?.thermal ? 'Day maximum / night minimum · measured averages, not a forecast' : 'Select a site to view temperature.'}</small><GradeBadge result={gradeMetric(profile, 'dayMaxTemp', siteGeo?.thermal?.dayMaxK)} /></article>
+    <article className={'metric' + (siteGeo?.terrain?.permanentlyShadowed ? ' metric-psr' : '') + gradeClass(profile)}><span>Permanent shadow</span>
      <strong className="small-strong">{siteGeo?.terrain?.permanentlyShadowed === true ? 'Yes · PSR' : siteGeo?.terrain?.permanentlyShadowed === false ? 'No' : location ? 'Outside map' : '—'}</strong>
-     <small>{siteGeo?.terrain?.permanentlyShadowed == null ? 'Official PSR map covers 75°S to the pole (120 m); unknown elsewhere, not "false"' : 'Official LOLA PSR map, 120 m (Mazarico et al. 2011)'}</small></article>
+     <small>{siteGeo?.terrain?.permanentlyShadowed == null ? 'Coverage: south of 75°S; unknown elsewhere' : 'Permanently shadowed terrain · 120 m resolution'}</small></article>
    </div>
    {siteError && <p role="alert">{siteError}</p>}
-   <p className="scene-source">
-    {series ? series.source : 'Source pending'} · Horizon: {siteGeo?.horizonMethod ?? 'mean lunar sphere, no terrain'} · Azimuth clockwise from north
-    {' · View: Sun-centered ECLIPJ2000, camera locked on the Moon'}
-    {scale === 'compact' ? ' · Compact scale: distances compressed (1 AU = 60 units, Moon–Earth 15 Moon radii); directions and planet/Moon size ratios true; Sun size capped' : ' · True scale: real distances and radii'}
-    {modelNote ? ' · ' + modelNote : ''}
-    {skyState === 'ready' && stars ? ' · Stars: NASA/Goddard SVS Deep Star Maps 2020 (J2000)' : ''}
-   </p>
   </section>
   {location && <SiteCoveragePanel data={siteCoverage.data} loading={siteCoverage.loading} error={siteCoverage.error} equipment={equipment} missionProfile={profile} />}
  </div>;

@@ -38,7 +38,7 @@ function SiteCard({site,buttons=true}:{site:LunarLocation;buttons?:boolean}){
   <div className="site-card-top"><span className="tag">{kindLabel(site)}</span>{active&&<span className="site-selected-mark">{buttons?'Selected':'Detailed'}</span>}</div>
   <h3>{site.name}</h3>
   {site.status&&<p className="muted">{site.status}</p>}
-  {site.source&&<p><a href={site.source} target="_blank" rel="noreferrer">Coordinate source ↗</a></p>}
+  {buttons&&site.source&&<p><a href={site.source} target="_blank" rel="noreferrer">Coordinate source ↗</a></p>}
   <p className="site-coordinates"><span aria-hidden="true">⌖</span>{formatLat(site.latitudeDeg)} <i>·</i> {formatLon(site.longitudeDeg)}</p>
   {buttons&&<div className="button-row">
    <button className={active?'active':''} aria-pressed={active} onClick={()=>state.setLocation(site)}>{active?'Selected':'Use for analysis'}</button>
@@ -135,7 +135,7 @@ function SiteDropdown({sites}:{sites:LunarLocation[]}){
 
   <div className="site-compare-bar" aria-live="polite">
    {selectedSites.length===0
-    ?<span className="muted">Choose a site to start. Add a second or third for graphs.</span>
+    ?<span className="muted">{sites.length} landing sites · Apollo and CLPS. Add up to three to compare.</span>
     :<span className="site-compare-group">
       <span className="site-compare-label">{selectedSites.length===1?'Showing in detail:':`Comparing ${selectedSites.length} / ${MAX_COMPARE}:`}</span>
       {selectedSites.map((s,i)=><button key={s.id} type="button" className="site-compare-chip" style={{'--chip':siteColor(i)} as CSSProperties} onClick={()=>state.toggleSite(s)} aria-label={`Remove ${s.name} from selection`}><span className="site-compare-dot" aria-hidden="true"/>{s.name}{i===0&&selectedSites.length>1&&<em className="site-compare-primary"> · detailed</em>}<X size={12} aria-hidden="true"/></button>)}

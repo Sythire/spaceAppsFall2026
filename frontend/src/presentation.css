@@ -256,3 +256,10 @@ body.dark-mode .presentation-main .about-page .about-hero { background: var(--he
   .presentation-main .mission-filters button { flex: 1; padding-inline: 10px; }
   .presentation-main .about-page .about-hero-image { min-height: 270px; }
 }
+
+/* Readout typography follows Overview without changing its layout. */
+.presentation-main .scene-readout-head h2 { font-size: 22px; font-weight: 700; line-height: 1.3; }
+.presentation-main .scene-readout-head .muted { font-size: 14px; line-height: 1.6; }
+.presentation-main .scene-readout .metric > span { font-size: 13px; font-weight: 650; }
+.presentation-main .scene-readout .metric > small { font-size: 13px; line-height: 1.6; }
+.presentation-main .layer-legend button { padding: 6px 10px; font: inherit; font-size: 12px; }

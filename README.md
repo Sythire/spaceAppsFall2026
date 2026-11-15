@@ -92,7 +92,7 @@ backend/.venv/Scripts/python.exe -m uvicorn api.main:app --app-dir backend --hos
 npm run dev --workspace frontend -- --port 5173 --strictPort
 ```
 
-On macOS/Linux replace the Python executable with `backend/.venv/bin/python`. Do not run the manual servers and combined launcher simultaneously.
+On macOS/Linux replace the Python executable with `backend/.venv/bin/python`. Do not run the manual servers and combined launcher simultaneously. Vite uses port 5173 in both workflows and stops if it is occupied; close the existing frontend instead of opening a second copy on 5174.
 
 ## Scientific files
 
@@ -149,3 +149,5 @@ Start at [docs/README.md](docs/README.md) and [CONTRIBUTING.md](CONTRIBUTING.md)
 - `docs/` and `data/`: architecture, contracts, research and provenance.
 
 Use feature branches and pull requests. Do not commit virtual environments, node_modules, private environment files or generated caches.
+
+Landing-site selection uses the live catalogue when available, with a bundled snapshot from `backend/api/catalog.py` if the service is offline or slow. This fallback contains site metadata only; geometry, maps and analysis still require the backend and NASA data.

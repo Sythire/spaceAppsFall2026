@@ -88,7 +88,6 @@ export function SiteCoveragePanel({ data, loading, error, equipment, missionProf
     <thead><tr><th>Day</th><th>Sunlit (h)</th><th>Electrical energy (Wh/m²)</th><th>Earth in view (h)</th></tr></thead>
     <tbody>{dailySummary(data).map(d => <tr key={d.day}><td>{d.day}</td><td>{d.sunlitH.toFixed(0)}</td><td>{d.energyWh.toFixed(0)}</td><td>{d.earthH.toFixed(0)}</td></tr>)}</tbody>
    </table></div></details>
-   <p className="scene-source">{data.method}</p>
   </>}
  </section>;
 }

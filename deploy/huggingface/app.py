@@ -10,8 +10,8 @@ whatever listens on port 7860. This script:
 
 ZeroGPU hardware: the platform refuses to start unless the app registers at least one @spaces.GPU function
 and sends ZeroGPU's startup report. The backend needs no GPU, so a placeholder function is registered (it is
-never called, so no GPU quota is used) and the FastAPI app is wrapped in spaces' ZeroGPUMiddleware, which sends
-the report when the server starts. On CPU hardware (or locally) both steps are no-ops.
+never called, so no GPU quota is used) and spaces.zero.startup() sends the report just before the server
+starts. Works with old and new versions of the `spaces` package; on CPU hardware (or locally) both are no-ops.
 """
 try:
     import spaces  # must be imported before anything that could touch CUDA
@@ -65,8 +65,13 @@ horizon.get_grid("southpole")
 import uvicorn  # noqa: E402
 from api.main import app  # noqa: E402
 
+# Send ZeroGPU's startup report ourselves. Every `spaces` version has spaces.zero.startup() on ZeroGPU hardware
+# (older ones only call it from Gradio's launch(), which this app never runs; newer ones keep it as an alias of
+# zerogpu_startup). On CPU hardware it doesn't exist and this is skipped.
 if spaces is not None:
-    from spaces.zero import ZeroGPUMiddleware  # sends ZeroGPU's startup report; passthrough elsewhere
-    app = ZeroGPUMiddleware(app)
+    from spaces import zero as _zero
+    if callable(getattr(_zero, "startup", None)):
+        print("Sending ZeroGPU startup report", flush=True)
+        _zero.startup()
 
 uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", "7860")))

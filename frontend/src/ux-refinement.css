@@ -95,6 +95,10 @@ body.dark-mode .plan-card:hover{border-color:#6b628c;box-shadow:0 10px 22px #000
 .site-option-meta{overflow:hidden;color:#8a86a8;font-size:10.5px;white-space:nowrap;text-overflow:ellipsis}
 .site-row-kind{padding:2px 7px;border-radius:99px;background:#f5f3ff;color:#655bd3;font-size:8px;font-weight:800;letter-spacing:.6px}
 .site-row-kind.k-clps-landed{background:#e6f6ef;color:#327461}.site-row-kind.k-clps-planned{background:#fff3dc;color:#8a6420}.site-row-kind.k-analysing{background:#655bd3;color:#fff}
+.site-option-actions{display:flex;flex:none;align-items:center;gap:6px}
+.site-option-analyse{flex:none;padding:5px 11px!important;border:1px solid #d9d4f5!important;border-radius:99px!important;background:#fff!important;color:#5a51b8!important;font-size:10.5px!important;font-weight:750!important;white-space:nowrap}
+.site-option-analyse:hover{background:#efecff!important}
+.site-option-analyse.is-current{background:#655bd3!important;border-color:#655bd3!important;color:#fff!important}
 .site-option-add{display:grid;flex:none;place-items:center;width:30px;height:30px;padding:0!important;border:1px solid #d9d4f5!important;border-radius:50%!important;background:#fff!important;color:#655bd3!important;transition:background .15s,color .15s}
 .site-option-add:hover:not(:disabled){background:#655bd3!important;border-color:#655bd3!important;color:#fff!important}
 .site-option-add.is-on{background:#e6f6ef!important;border-color:#bfe6d5!important;color:#327461!important}
@@ -133,3 +137,8 @@ body.dark-mode .site-compare-chip{border-color:#484364!important;background:#2a2
 body.dark-mode .heatmap{color:#c7c4de}
 body.dark-mode .heatmap-rowlabel{fill:#f1efff}
 body.dark-mode .heatmap-axis{fill:#aaa9c4}
+
+/* Analyse button — dark mode */
+body.dark-mode .site-option-analyse{border-color:#484364!important;background:#221f33!important;color:#c9c2ff!important}
+body.dark-mode .site-option-analyse:hover{background:#2f2b47!important}
+body.dark-mode .site-option-analyse.is-current{background:#766adc!important;border-color:#766adc!important;color:#fff!important}

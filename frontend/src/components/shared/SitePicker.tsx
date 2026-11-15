@@ -110,7 +110,7 @@ function SiteDropdown({sites}:{sites:LunarLocation[]}){
       aria-activedescendant={shown[highlight]?`${listId}-${highlight}`:undefined}
       value={query} onChange={e=>setQuery(e.target.value)} onKeyDown={onKey} placeholder="Search modules (Apollo, CLPS, Athena…)"/>
     </div>
-    <p className="site-dropdown-help">Click a module to analyse it · press <b>+</b> to compare ({selectedSites.length} / {MAX_COMPARE})</p>
+    <p className="site-dropdown-help"><b>Analyse</b> shows one module’s data · <b>+</b> adds it to the comparison ({selectedSites.length} / {MAX_COMPARE})</p>
     <ul className="site-dropdown-list" role="listbox" id={listId} ref={list} aria-label="All modules">
      {shown.map((s,i)=>{
       const on=comparing(s),off=blocked(s),current=location?.id===s.id;
@@ -118,13 +118,18 @@ function SiteDropdown({sites}:{sites:LunarLocation[]}){
        className={`site-option${i===highlight?' is-highlighted':''}${current?' is-current':''}`}
        onMouseEnter={()=>setHighlight(i)} onMouseDown={e=>e.preventDefault()} onClick={()=>analyse(s)}>
        <div className="site-option-text">
-        <span className="site-option-name">{s.name}<span className={`site-row-kind k-${s.kind??'other'}`}>{kindLabel(s,true)}</span>{current&&<span className="site-row-kind k-analysing">ANALYSING</span>}</span>
+        <span className="site-option-name">{s.name}<span className={`site-row-kind k-${s.kind??'other'}`}>{kindLabel(s,true)}</span></span>
         <span className="site-option-meta">{formatLat(s.latitudeDeg)} · {formatLon(s.longitudeDeg)}{s.status?` · ${s.status}`:''}</span>
        </div>
-       <button type="button" tabIndex={-1} className={`site-option-add${on?' is-on':''}`} disabled={off}
-        aria-label={on?`Remove ${s.name} from comparison`:`Add ${s.name} to comparison`}
-        title={off?`Comparison is full (${MAX_COMPARE} modules)`:on?'Remove from comparison':'Add to comparison'}
-        onClick={e=>{e.stopPropagation();toggleCompare(s);}}>{on?<Check size={15}/>:<Plus size={15}/>}</button>
+       <div className="site-option-actions">
+        <button type="button" tabIndex={-1} className={`site-option-analyse${current?' is-current':''}`} aria-pressed={current}
+         aria-label={current?`${s.name} is being analysed`:`Analyse ${s.name}`}
+         onClick={e=>{e.stopPropagation();analyse(s);}}>{current?'Analysing':'Analyse'}</button>
+        <button type="button" tabIndex={-1} className={`site-option-add${on?' is-on':''}`} disabled={off}
+         aria-label={on?`Remove ${s.name} from comparison`:`Add ${s.name} to comparison`}
+         title={off?`Comparison is full (${MAX_COMPARE} modules)`:on?'Remove from comparison':'Add to comparison'}
+         onClick={e=>{e.stopPropagation();toggleCompare(s);}}>{on?<Check size={15}/>:<Plus size={15}/>}</button>
+       </div>
       </li>;
      })}
      {shown.length===0&&<li className="site-option-empty">No modules match “{query}”.</li>}

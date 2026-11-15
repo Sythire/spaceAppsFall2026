@@ -29,9 +29,9 @@ export function TerrainComparison({ sites, utc, days }: { sites: LunarLocation[]
  const r = useAsync(load);
  if (sites.length < 2) return null;
  return <section className="terrain-comparison">
-  <h3>Terrain-aware power, communication, shadow and temperature</h3>
+  <h3>Terrain, power & Earth visibility</h3>
   <p className="muted">Over {span} days from the start time · panel tilt {equipment.panelTiltDeg}° at {equipment.panelHeightM} m, {equipment.panelEfficiencyPct}% efficient · receiver needs Earth ≥ {equipment.commMaskDeg}° at {equipment.commHeightM} m (set on the Lunar Explorer page).</p>
-  {r.loading && <p className="muted">Computing terrain horizons for each site…</p>}
+  {r.loading && <p className="muted">Calculating terrain conditions…</p>}
   {r.error && <p role="alert">{r.error} <button type="button" onClick={r.retry}>Retry</button></p>}
   {r.data && <div className="table-scroll"><table>
    <thead><tr><th>Metric</th>{sites.map(s => <th key={s.id}>{s.name}</th>)}</tr></thead>

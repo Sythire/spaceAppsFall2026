@@ -20,17 +20,15 @@ export default function Analysis(){
  const simulated=result?.mode==='simulated';
  return <>
   <MockNotice/>
-  <div className="page-heading"><span className="eyebrow">SITE RESEARCH · DECISION WORKSPACE</span><h2>Compare the conditions at each site.</h2><p>Choose a site, UTC start and duration to evaluate lighting and Earth visibility.</p></div>
-  <Panel title="Choose a location"><SitePicker/><p className="muted">For custom coordinates, select a point in the <Link to="/explorer">Lunar Explorer</Link>, then return here.</p></Panel>
+  <div className="page-heading"><span className="eyebrow">LANDING-SITE CONDITIONS</span><h2>Understand your landing site.</h2><p>Choose a location and time to compare sunlight, terrain and Earth visibility.</p></div>
+  <Panel title="Choose a location"><SitePicker/><p className="muted">For a custom site, choose a point in the <Link to="/explorer">Lunar Explorer</Link>, then return here.</p></Panel>
   <Panel title={location?`Scenario · ${location.name}`:'Scenario'}>
    <ScenarioControls/>
    {location&&<p className="muted">{location.latitudeDeg}° N / {location.longitudeDeg}° E · MOON_ME</p>}
-   {location&&<div className="button-row"><button type="button" aria-pressed={selectedSites.some(s=>s.id===location.id)} disabled={selectedSites.length===3&&!selectedSites.some(s=>s.id===location.id)} onClick={()=>toggleSite(location)}>{selectedSites.some(s=>s.id===location.id)?'Remove from comparison':'Add selected location to comparison'}</button><Link to="/comparison">Compare sites →</Link></div>}
+   {location&&<div className="button-row"><button type="button" aria-pressed={selectedSites.some(s=>s.id===location.id)} disabled={selectedSites.length===3&&!selectedSites.some(s=>s.id===location.id)} onClick={()=>toggleSite(location)}>{selectedSites.some(s=>s.id===location.id)?'Remove from comparison':'Add to comparison'}</button><Link to="/comparison">Compare sites →</Link></div>}
    <AsyncState {...resource}/>
-   {!location&&<p className="muted">Select a site above to calculate results.</p>}
+   {!location&&<p className="muted">Choose a site to see its conditions.</p>}
    {result&&<>
-    <p className="muted">{result.source}</p>
-    {result.interval&&<p className="muted">{result.interval.startUtc} → {result.interval.endUtc} · {result.interval.sampleCount} chart samples</p>}
     <div className="metrics-grid">
      <Metric label="Sun elevation at start" value={result.sun.elevationDeg.toFixed(2)+'°'} note={'Azimuth '+result.sun.azimuthDeg.toFixed(2)+'° clockwise from north'}/>
      <Metric label="Earth elevation at start" value={result.earth.elevationDeg.toFixed(2)+'°'} note={'Azimuth '+result.earth.azimuthDeg.toFixed(2)+'° clockwise from north'}/>
@@ -46,9 +44,9 @@ export default function Analysis(){
     </div>
     {result.illumination.visibleWindows&&<Panel title="Daylight windows"><VisibilityWindows windows={result.illumination.visibleWindows} label="Daylight windows"/></Panel>}
     {result.earthVisibility&&<Panel title="Direct-to-Earth visibility windows"><VisibilityWindows windows={result.earthVisibility.visibleWindows} label="Earth visibility windows"/><p className="muted">Earth-center visibility does not guarantee contact with a ground station or a usable radio link.</p></Panel>}
-    {result.metadata&&<details><summary>Sources, methods and limitations</summary><p className="muted">{result.metadata.horizonMethod}</p><ul>{result.metadata.limitations.map(note=><li key={note}>{note}</li>)}</ul><p className="muted">Frame: {result.metadata.provenance.frameRealization}</p><ul>{result.metadata.provenance.kernels.map(k=><li key={k.file}><a href={k.url}>{k.file}</a></li>)}</ul></details>}
+    <details><summary>Sources, methods and limitations</summary><p className="muted">{result.source}</p>{result.interval&&<p className="muted">{result.interval.startUtc} → {result.interval.endUtc} · {result.interval.sampleCount} chart samples</p>}{result.metadata&&<><p className="muted">{result.metadata.horizonMethod}</p><ul>{result.metadata.limitations.map(note=><li key={note}>{note}</li>)}</ul><p className="muted">Frame: {result.metadata.provenance.frameRealization}</p><ul>{result.metadata.provenance.kernels.map(k=><li key={k.file}><a href={k.url}>{k.file}</a></li>)}</ul></>}</details>
    </>}
   </Panel>
-  <section className="research-step"><div className="section-heading"><div><span className="eyebrow">WEIGH OPTIONS</span><h2>Compare landing sites</h2></div></div><Comparison embedded/></section>
+  <section className="research-step"><div className="section-heading"><div><span className="eyebrow">SIDE BY SIDE</span><h2>Compare landing sites</h2></div></div><Comparison embedded/></section>
  </>;
 }

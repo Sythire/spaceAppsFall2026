@@ -66,6 +66,7 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
  const [attempt, setAttempt] = useState(0);
  const [playhead, setPlayhead] = useState(0);
  const [playing, setPlaying] = useState(false);
+ const [coverageOpen, setCoverageOpen] = useState(false);
  const [speed, setSpeed] = useState(initialPrefs.speed);
  const [scale, setScale] = useState<ScaleMode>(initialPrefs.scale);
  const [grid, setGrid] = useState(initialPrefs.grid);
@@ -116,6 +117,10 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
  useEffect(() => {
   let current = true;
   setSeriesError('');
+  setSeries(null);
+  setSiteGeo(null);
+  setPlaying(false);
+  setPlayhead(0);
   sceneService.series(utc, WINDOW_HOURS, STEP_HOURS, lat, lon)
    .then(s => { if (current) { setSeries(s); setPlayhead(0); engineRef.current?.setPathSamples(s.samples); } })
    .catch((e: unknown) => { if (current) setSeriesError(e instanceof Error ? e.message : 'Unable to load ephemeris'); });
@@ -293,23 +298,92 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
  const modelNote = models && Object.entries(models).filter(([, s]) => s !== 'model')
   .map(([k, s]) => `${k}: ${s === 'loading' ? 'loading model…' : 'reference sphere (GLB not found)'}`).join(' · ');
 
- return <div className="scene-wrap">
-  <div className="map-viewport scene-viewport" ref={containerRef} role="application"
-   aria-label="3D Sun-centered view focused on the Moon. Drag to orbit the Moon, scroll to zoom, click the Moon to select a location. Coordinates can also be entered in the form.">
-   <div className="scene-toggles">
+ return <div className="scene-wrap" id="lunar-view">
+   <div className="view-toolbar"><div className="button-row"><button type="button" onClick={() => engineRef.current?.resetView()}><Moon size={14} aria-hidden /> Focus Moon</button>{location && <button type="button" onClick={() => engineRef.current?.flyTo(location.latitudeDeg, location.longitudeDeg)}><Crosshair size={14} aria-hidden /> Focus site</button>}</div><span className="muted">{scale === 'compact' ? 'Compact distances' : 'True scale'} · drag to rotate</span></div>
+   <details className="disclosure view-options"><summary>View options</summary><div className="scene-toggles">
+    <button type="button" onClick={() => engineRef.current?.systemView()}><Sun size={12} aria-hidden /> Solar system</button>
     <label>Scale<select value={scale} onChange={e => setScale(e.target.value as ScaleMode)}>
      <option value="compact">Compact distances</option><option value="true">True scale</option></select></label>
     <label className="checkbox"><input type="checkbox" checked={grid} onChange={e => setGrid(e.target.checked)} />Lat/lon grid</label>
     <label className="checkbox"><input type="checkbox" checked={paths} onChange={e => setPaths(e.target.checked)} />Orbits & Moon path</label>
     <label className="checkbox"><input type="checkbox" checked={labels} onChange={e => setLabels(e.target.checked)} />Labels</label>
     <label className="checkbox" title={skyState === 'none' ? 'No star map in modelResources' : undefined}><input type="checkbox" checked={stars} disabled={skyState !== 'ready'} onChange={e => setStars(e.target.checked)} />Stars{skyState === 'loading' ? ' (loading…)' : skyState === 'none' ? ' (no map)' : skyState === 'error' ? ' (failed)' : ''}</label>
-    <div className="button-row">
-     <button type="button" onClick={() => engineRef.current?.resetView()}><Moon size={12} aria-hidden /> Moon</button>
-     <button type="button" onClick={() => engineRef.current?.systemView()}><Sun size={12} aria-hidden /> Solar system</button>
-     {location && <button type="button" onClick={() => engineRef.current?.flyTo(location.latitudeDeg, location.longitudeDeg)}><Crosshair size={12} aria-hidden /> Site</button>}
-    </div>
+</div></details>
+  <div className="map-viewport scene-viewport" ref={containerRef} role="application"
+   aria-label="3D Sun-centered view focused on the Moon. Drag to orbit the Moon, scroll to zoom, click the Moon to select a location. Coordinates can also be entered in the form.">
+   {seriesError && <div className="scene-error" role="alert">
+    <strong>Ephemeris service unavailable</strong><p>{seriesError}</p>
+    <p className="muted">Start it from <code>backend/</code>: <code>python -m uvicorn api.main:app --port 8000</code></p>
+    <button type="button" onClick={() => setAttempt(n => n + 1)}>Retry</button>
+   </div>}
+   {!series && !seriesError && <div className="scene-loading">Loading SPICE geometry…</div>}
+  </div>
+
+  <section className="scene-timeline panel" aria-label="Time playback">
+   <button type="button" onClick={togglePlay} disabled={!series} aria-label={playing ? 'Pause playback' : 'Play playback'}>
+    {playing ? <Pause size={14} aria-hidden /> : <Play size={14} aria-hidden />}</button>
+   <label className="scene-slider">
+    <span>Viewing <strong>{formatUtc(viewingUtc)}</strong> · +{(playhead / 24).toFixed(1)} of 30 days from scenario time</span>
+    <input type="range" min={0} max={WINDOW_HOURS} step={0.25} value={playhead} disabled={!series}
+     aria-label="Hours after scenario time" onChange={e => { setPlaying(false); setPlayhead(Number(e.target.value)); }} />
+   </label>
+   <details className="playback-options"><summary>Playback options</summary><div className="playback-settings">
+   <label htmlFor="scene-speed">Playback speed</label>
+   <select id="scene-speed" value={speed} onChange={e => setSpeed(Number(e.target.value))}>
+    {SPEEDS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}</select>
+   <button type="button" disabled={playhead === 0} onClick={() => { setPlaying(false); setPlayhead(0); }}>Back to scenario time</button>
+   <button type="button" disabled={playhead === 0} onClick={() => { setPlaying(false); onUtcChange(new Date(viewingUtc).toISOString()); }}>
+    <CalendarCheck size={12} aria-hidden /> Set as scenario time</button></div></details>
+  </section>
+
+
+
+  <section className="panel scene-readout">
+   <div className="scene-readout-head">
+    <h2>{location ? location.name : 'No site selected'}</h2>
+    <span className="muted">{location ? fmtLatLon(location.latitudeDeg, location.longitudeDeg) + ' · MOON_ME' : 'Click the Moon, a site ping, or enter coordinates.'}</span>
    </div>
-   {(elevationOn || illuminationOn || activeCoverage.length > 0 || psrOn || thermalOn) && <div className="layer-legends">
+   <div className="readout-grid">
+    <article className={'metric metric-sun' + gradeClass(profile)}><span>Sun elevation · viewed time</span>
+     <strong>{sunAngles ? deg(sunAngles.elevationDeg) : '—'}</strong>
+     <small>{sunAngles ? 'Azimuth ' + deg(sunAngles.azimuthDeg) + ' · ' : ''}{location ? event('sun', ['sunset', 'sunrise']) : 'Select a site'}</small>
+     {location && terrainEvent('sun', ['sunset', 'sunrise']) && <small className="terrain-event">{terrainEvent('sun', ['sunset', 'sunrise'])}</small>}</article>
+    <article className={'metric metric-earth' + gradeClass(profile)}><span>Earth elevation · viewed time</span>
+     <strong>{earthAngles ? deg(earthAngles.elevationDeg) : '—'}</strong>
+     <small>{earthAngles ? 'Azimuth ' + deg(earthAngles.azimuthDeg) + ' · ' : ''}{location ? event('earth', ['Earthset', 'Earthrise']) : 'Select a site'}</small>
+     {location && terrainEvent('earth', ['Earthset', 'Earthrise']) && <small className="terrain-event">{terrainEvent('earth', ['Earthset', 'Earthrise'])}</small>}</article>
+   </div>
+   <p className="science-note">Angles use a smooth lunar horizon. Above 0° means above that horizon; Earth visibility alone does not guarantee a radio link.</p>
+   <details className="disclosure"><summary>Terrain, temperature & detailed statistics</summary><div className="readout-grid">
+    <article className={'metric' + gradeClass(profile)}><span>Ideal horizontal panel</span>
+     <strong>{siteGeo && !playing ? siteGeo.power.horizontalPanelWm2.toFixed(0) + ' W/m²' : '—'}</strong>
+     <small>{siteGeo ? `Solar flux ${siteGeo.power.solarFluxWm2.toFixed(0)} W/m² · ${siteGeo.power.assumptions}` : 'Needs a selected site'}</small></article>
+    <article className={'metric' + gradeClass(profile)}><span>Sub-solar · sub-Earth point</span>
+     <strong className="small-strong">{subSolar ? fmtLatLon(subSolar.lat, subSolar.lon) : '—'}</strong>
+     <small>Sub-Earth {subEarth ? fmtLatLon(subEarth.lat, subEarth.lon) : '—'} · offset from 0°,0° is libration</small></article>
+    <article className={'metric' + gradeClass(profile, gradeMetric(profile, 'slope', siteGeo?.terrain?.regionalSlopeDeg).grade) + (siteGeo?.terrain ? '' : ' metric-unavailable')}><span>Terrain · LOLA</span>
+     <strong className="small-strong">{siteGeo?.terrain ? `Slope ${siteGeo.terrain.regionalSlopeDeg.toFixed(1)}°` : location ? 'Not available' : '—'}</strong>
+     <small>{siteGeo?.terrain
+      ? `Elevation ${(siteGeo.terrain.elevationM / 1000).toFixed(2)} km · slope over ~${siteGeo.terrain.baselineKm.toFixed(1)} km (lander-scale slopes can be steeper)`
+      : 'Elevation and regional slope need the LOLA DEM.'}</small><GradeBadge result={gradeMetric(profile, 'slope', siteGeo?.terrain?.regionalSlopeDeg)} /></article>
+    <article className={'metric' + gradeClass(profile, gradeMetric(profile, 'dayMaxTemp', siteGeo?.thermal?.dayMaxK).grade)}><span>Temperature · Diviner</span>
+     <strong className="small-strong">{siteGeo?.thermal?.dayMaxK != null ? `${siteGeo.thermal.dayMaxK.toFixed(0)} K / ${siteGeo.thermal.nightMinK?.toFixed(0) ?? '—'} K` : location ? 'Not available' : '—'}</strong>
+     <small>{siteGeo?.thermal ? 'Day max / night min of 2010 cycle averages (measured, ~7.6 km cells); not a forecast for this time' : 'Needs the Diviner maps in modelResources/diviner'}</small><GradeBadge result={gradeMetric(profile, 'dayMaxTemp', siteGeo?.thermal?.dayMaxK)} /></article>
+    <article className={'metric' + (siteGeo?.terrain?.permanentlyShadowed ? ' metric-psr' : '') + gradeClass(profile)}><span>Permanent shadow · LOLA</span>
+     <strong className="small-strong">{siteGeo?.terrain?.permanentlyShadowed === true ? 'Yes · PSR' : siteGeo?.terrain?.permanentlyShadowed === false ? 'No' : location ? 'Outside map' : '—'}</strong>
+     <small>{siteGeo?.terrain?.permanentlyShadowed == null ? 'Official PSR map covers 75°S to the pole (120 m); unknown elsewhere, not "false"' : 'Official LOLA PSR map, 120 m (Mazarico et al. 2011)'}</small></article>
+   </div>
+   </details>
+   {siteError && <p role="alert">{siteError}</p>}
+   <details className="disclosure"><summary>Sources & view assumptions</summary><p className="scene-source">
+    {series ? series.source : 'Source pending'} · Horizon: {siteGeo?.horizonMethod ?? 'mean lunar sphere, no terrain'} · Azimuth clockwise from north
+    {' · View: Sun-centered ECLIPJ2000, camera locked on the Moon'}
+    {scale === 'compact' ? ' · Compact scale: distances compressed (1 AU = 60 units, Moon–Earth 15 Moon radii); directions and planet/Moon size ratios true; Sun size capped' : ' · True scale: real distances and radii'}
+    {modelNote ? ' · ' + modelNote : ''}
+    {skyState === 'ready' && stars ? ' · Stars: NASA/Goddard SVS Deep Star Maps 2020 (J2000)' : ''}
+   </p></details>
+  </section>
+   {(elevationOn || illuminationOn || activeCoverage.length > 0 || psrOn || thermalOn) && <details className="disclosure layer-key" open><summary>Active layer key</summary><div className="layer-legends">
     {elevationOn && <div className="layer-legend">
      <strong>Elevation (LOLA)</strong>
      {terrainState === 'loading' && <span>Loading LOLA heights…</span>}
@@ -361,80 +435,14 @@ export function MapViewport({ location, layers, onSelect, utc, onUtcChange, mark
      <div className="legend-scale positioned"><span style={{ left: '0%' }}>Night</span><span style={{ left: '13%' }}>0°</span><span style={{ left: '40%' }}>20°</span><span style={{ left: '100%' }}>90°</span></div>
      <small>Live for the viewed time · white lines every 10° · mean-sphere horizon, no terrain shadows</small>
     </div>}
-   </div>}
-   <div className="scene-legend" aria-hidden>
+   </div></details>}
+   <details className="disclosure"><summary>Map symbols</summary><div className="scene-legend">
     <span><i className="ping" style={{ background: hex(MARKER_COLORS.historical) }} />Apollo</span><span><i className="ping" style={{ background: hex(MARKER_COLORS['clps-landed']) }} />CLPS landed</span><span><i className="ping" style={{ background: hex(MARKER_COLORS['clps-planned']) }} />CLPS planned (target region)</span>
-    <span><i className="orbit" />Mercury / Venus / Earth / Mars orbits · Moon path</span><span><i className="sun" />Sun direction</span><span><i className="earth" />Earth direction</span><span><i className="horizon" />Local horizon</span>
-   </div>
-   {seriesError && <div className="scene-error" role="alert">
-    <strong>Ephemeris service unavailable</strong><p>{seriesError}</p>
-    <p className="muted">Start it from <code>backend/</code>: <code>python -m uvicorn api.main:app --port 8000</code></p>
-    <button type="button" onClick={() => setAttempt(n => n + 1)}>Retry</button>
-   </div>}
-   {!series && !seriesError && <div className="scene-loading">Loading SPICE geometry…</div>}
-  </div>
-
-  <section className="scene-timeline panel" aria-label="Time playback">
-   <button type="button" onClick={togglePlay} disabled={!series} aria-label={playing ? 'Pause playback' : 'Play playback'}>
-    {playing ? <Pause size={14} aria-hidden /> : <Play size={14} aria-hidden />}</button>
-   <label className="sr-only" htmlFor="scene-speed">Playback speed</label>
-   <select id="scene-speed" value={speed} onChange={e => setSpeed(Number(e.target.value))}>
-    {SPEEDS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}</select>
-   <label className="scene-slider">
-    <span>Viewing <strong>{formatUtc(viewingUtc)}</strong> · +{(playhead / 24).toFixed(1)} of 30 days from scenario time</span>
-    <input type="range" min={0} max={WINDOW_HOURS} step={0.25} value={playhead} disabled={!series}
-     aria-label="Hours after scenario time" onChange={e => { setPlaying(false); setPlayhead(Number(e.target.value)); }} />
-   </label>
-   <button type="button" disabled={playhead === 0} onClick={() => { setPlaying(false); setPlayhead(0); }}>Back to scenario time</button>
-   <button type="button" disabled={playhead === 0} onClick={() => { setPlaying(false); onUtcChange(new Date(viewingUtc).toISOString()); }}>
-    <CalendarCheck size={12} aria-hidden /> Set as scenario time</button>
-  </section>
-
-  {equipmentBar}
-
-  <MissionBar value={mission} onChange={setMission} />
-
-  <section className="panel scene-readout" aria-live="polite">
-   <div className="scene-readout-head">
-    <h2>{location ? location.name : 'No site selected'}</h2>
-    <span className="muted">{location ? fmtLatLon(location.latitudeDeg, location.longitudeDeg) + ' · MOON_ME' : 'Click the Moon, a site ping, or enter coordinates.'}</span>
-   </div>
-   <div className="readout-grid">
-    <article className={'metric metric-sun' + gradeClass(profile)}><span>Solar elevation</span>
-     <strong>{sunAngles ? deg(sunAngles.elevationDeg) : '—'}</strong>
-     <small>{sunAngles ? 'Azimuth ' + deg(sunAngles.azimuthDeg) + ' · ' : ''}{location ? event('sun', ['sunset', 'sunrise']) : 'Select a site'}</small>
-     {location && terrainEvent('sun', ['sunset', 'sunrise']) && <small className="terrain-event">{terrainEvent('sun', ['sunset', 'sunrise'])}</small>}</article>
-    <article className={'metric metric-earth' + gradeClass(profile)}><span>Earth elevation</span>
-     <strong>{earthAngles ? deg(earthAngles.elevationDeg) : '—'}</strong>
-     <small>{earthAngles ? 'Azimuth ' + deg(earthAngles.azimuthDeg) + ' · ' : ''}{location ? event('earth', ['Earthset', 'Earthrise']) : 'Select a site'}</small>
-     {location && terrainEvent('earth', ['Earthset', 'Earthrise']) && <small className="terrain-event">{terrainEvent('earth', ['Earthset', 'Earthrise'])}</small>}</article>
-    <article className={'metric' + gradeClass(profile)}><span>Ideal horizontal panel</span>
-     <strong>{siteGeo && !playing ? siteGeo.power.horizontalPanelWm2.toFixed(0) + ' W/m²' : '—'}</strong>
-     <small>{siteGeo ? `Solar flux ${siteGeo.power.solarFluxWm2.toFixed(0)} W/m² · ${siteGeo.power.assumptions}` : 'Needs a selected site'}</small></article>
-    <article className={'metric' + gradeClass(profile)}><span>Sub-solar · sub-Earth point</span>
-     <strong className="small-strong">{subSolar ? fmtLatLon(subSolar.lat, subSolar.lon) : '—'}</strong>
-     <small>Sub-Earth {subEarth ? fmtLatLon(subEarth.lat, subEarth.lon) : '—'} · offset from 0°,0° is libration</small></article>
-    <article className={'metric' + gradeClass(profile, gradeMetric(profile, 'slope', siteGeo?.terrain?.regionalSlopeDeg).grade) + (siteGeo?.terrain ? '' : ' metric-unavailable')}><span>Terrain · LOLA</span>
-     <strong className="small-strong">{siteGeo?.terrain ? `Slope ${siteGeo.terrain.regionalSlopeDeg.toFixed(1)}°` : location ? 'Not available' : '—'}</strong>
-     <small>{siteGeo?.terrain
-      ? `Elevation ${(siteGeo.terrain.elevationM / 1000).toFixed(2)} km · slope over ~${siteGeo.terrain.baselineKm.toFixed(1)} km (lander-scale slopes can be steeper)`
-      : 'Elevation and regional slope need the LOLA DEM.'}</small><GradeBadge result={gradeMetric(profile, 'slope', siteGeo?.terrain?.regionalSlopeDeg)} /></article>
-    <article className={'metric' + gradeClass(profile, gradeMetric(profile, 'dayMaxTemp', siteGeo?.thermal?.dayMaxK).grade)}><span>Temperature · Diviner</span>
-     <strong className="small-strong">{siteGeo?.thermal?.dayMaxK != null ? `${siteGeo.thermal.dayMaxK.toFixed(0)} K / ${siteGeo.thermal.nightMinK?.toFixed(0) ?? '—'} K` : location ? 'Not available' : '—'}</strong>
-     <small>{siteGeo?.thermal ? 'Day max / night min of 2010 cycle averages (measured, ~7.6 km cells); not a forecast for this time' : 'Needs the Diviner maps in modelResources/diviner'}</small><GradeBadge result={gradeMetric(profile, 'dayMaxTemp', siteGeo?.thermal?.dayMaxK)} /></article>
-    <article className={'metric' + (siteGeo?.terrain?.permanentlyShadowed ? ' metric-psr' : '') + gradeClass(profile)}><span>Permanent shadow · LOLA</span>
-     <strong className="small-strong">{siteGeo?.terrain?.permanentlyShadowed === true ? 'Yes · PSR' : siteGeo?.terrain?.permanentlyShadowed === false ? 'No' : location ? 'Outside map' : '—'}</strong>
-     <small>{siteGeo?.terrain?.permanentlyShadowed == null ? 'Official PSR map covers 75°S to the pole (120 m); unknown elsewhere, not "false"' : 'Official LOLA PSR map, 120 m (Mazarico et al. 2011)'}</small></article>
-   </div>
-   {siteError && <p role="alert">{siteError}</p>}
-   <p className="scene-source">
-    {series ? series.source : 'Source pending'} · Horizon: {siteGeo?.horizonMethod ?? 'mean lunar sphere, no terrain'} · Azimuth clockwise from north
-    {' · View: Sun-centered ECLIPJ2000, camera locked on the Moon'}
-    {scale === 'compact' ? ' · Compact scale: distances compressed (1 AU = 60 units, Moon–Earth 15 Moon radii); directions and planet/Moon size ratios true; Sun size capped' : ' · True scale: real distances and radii'}
-    {modelNote ? ' · ' + modelNote : ''}
-    {skyState === 'ready' && stars ? ' · Stars: NASA/Goddard SVS Deep Star Maps 2020 (J2000)' : ''}
-   </p>
-  </section>
-  {location && <SiteCoveragePanel data={siteCoverage.data} loading={siteCoverage.loading} error={siteCoverage.error} equipment={equipment} missionProfile={profile} />}
+    <span><i className="orbit" />Mercury / Venus / Earth / Mars orbits · Moon path</span><span><i className="sun" />Sun direction</span><span><i className="earth" />Earth direction</span><span><i className="horizon" />Local horizon</span></div></details>
+  <details className="disclosure advanced-settings"><summary>Advanced settings <span className="detail-count">Equipment & mission grading</span></summary>
+   {equipmentBar}
+   <MissionBar value={mission} onChange={setMission} />
+  </details>
+  {location && <details className="disclosure" onToggle={e=>setCoverageOpen(e.currentTarget.open)}><summary>Terrain-aware power & communication · 30-day detail</summary>{coverageOpen&&<SiteCoveragePanel data={siteCoverage.data} loading={siteCoverage.loading} error={siteCoverage.error} equipment={equipment} missionProfile={profile} />}</details>}
  </div>;
 }

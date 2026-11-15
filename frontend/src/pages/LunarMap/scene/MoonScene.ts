@@ -504,6 +504,7 @@ export class MoonScene {
    div.className = 'scene-label scene-label-site';
    div.textContent = m.name;
    const label = new CSS2DObject(div);
+   label.userData.selected = m.id === selectedId;
    label.position.copy(p.clone().multiplyScalar((r + 0.01) / (r + 0.003)));
    label.center.set(-0.08, 0.5);
    this.surfaceLabels.push({ label, grid: false });
@@ -860,5 +861,19 @@ export class MoonScene {
   this.controls.update();
   this.renderer.render(this.scene, this.camera);
   this.labelRenderer.render(this.scene, this.camera);
+  // Keep labels inside the globe viewport and avoid overlapping nearby sites.
+  // The selected site gets first priority; markers remain selectable when labels are hidden.
+  const bounds = this.container.getBoundingClientRect();
+  const candidates = [...this.labels, ...this.surfaceLabels.map(({ label }) => label)]
+   .filter(label => label.visible && label.element.style.display !== 'none')
+   .sort((a, b) => Number(!!b.userData.selected) - Number(!!a.userData.selected))
+   .map(label => ({ element: label.element, rect: label.element.getBoundingClientRect() }));
+  const occupied: DOMRect[] = [];
+  for (const { element, rect } of candidates) {
+   const outside = rect.left < bounds.left + 6 || rect.right > bounds.right - 6 || rect.top < bounds.top + 6 || rect.bottom > bounds.bottom - 6;
+   const overlaps = occupied.some(other => rect.left < other.right + 6 && rect.right + 6 > other.left && rect.top < other.bottom + 6 && rect.bottom + 6 > other.top);
+   element.style.visibility = outside || overlaps ? 'hidden' : 'visible';
+   if (!outside && !overlaps) occupied.push(rect);
+  }
  };
 }

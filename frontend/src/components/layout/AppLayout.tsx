@@ -2,7 +2,20 @@ import {useEffect,useState} from 'react';
 import {Outlet,useLocation} from 'react-router';
 import {Moon,Sun} from 'lucide-react';
 import {Sidebar,navigation} from '../navigation/Sidebar';
-import {DateSelector} from '../shared/DateSelector';
+import {WorkflowNav} from '../shared/WorkflowNav';
 import {isMockMode} from '../../services/apiClient';
-export function AppLayout(){const {pathname}=useLocation();const [darkMode,setDarkMode]=useState(()=>localStorage.getItem('moonwalk-theme')==='dark');useEffect(()=>{document.body.classList.toggle('dark-mode',darkMode);localStorage.setItem('moonwalk-theme',darkMode?'dark':'light')},[darkMode]);return <div className="app-shell"><a className="skip-link" href="#page-main">Skip to main content</a><Sidebar/><div className="workspace"><header className="topbar"><div className="topbar-heading"><span className="eyebrow">MOONWALK <span aria-hidden="true">✦</span> LUNAR FIELD GUIDE</span><h1>{navigation.find(n=>n.path===pathname)?.label??(pathname==='/comparison'?'Site Comparison':'Page not found')}</h1><p key={pathname} className="mission-tagline" aria-label="Explore lunar terrain. Compare landing sites. Follow future missions."><span className="tagline-part tagline-part-one" aria-hidden="true">Explore lunar terrain</span><span className="tagline-separator" aria-hidden="true">✦</span><span className="tagline-part tagline-part-two" aria-hidden="true">compare landing sites</span><span className="tagline-separator" aria-hidden="true">✦</span><span className="tagline-part tagline-part-three" aria-hidden="true">follow future missions</span></p></div><div className="topbar-tools"><button className="theme-toggle" type="button" onClick={()=>setDarkMode(value=>!value)} aria-label={darkMode?'Switch to light mode':'Switch to dark mode'} aria-pressed={darkMode}>{darkMode?<Sun size={16}/>:<Moon size={16}/>}<span>{darkMode?'Light mode':'Dark mode'}</span></button><DateSelector/><span className="status"><i/>{isMockMode?'Analysis: demo fixtures':'Analysis: SPICE service'}</span></div></header><main id="page-main" key={pathname} className="page-enter"><Outlet/></main><footer><span>MADE FOR CURIOUS MINDS&nbsp; ✦ &nbsp;NASA SPACE APPS</span><span>LUNAR SOUTH POLE FIELD GUIDE</span></footer></div></div>;}
+
+export function AppLayout(){
+ const {pathname}=useLocation();
+ const [darkMode,setDarkMode]=useState(()=>{try{return localStorage.getItem('moonwalk-theme')==='dark';}catch{return false;}});
+ useEffect(()=>{document.body.classList.toggle('dark-mode',darkMode);try{localStorage.setItem('moonwalk-theme',darkMode?'dark':'light');}catch{/* Theme still works without storage. */}},[darkMode]);
+ const workflow=['/explorer','/analysis','/comparison'].includes(pathname);
+ return <div className="app-shell"><a className="skip-link" href="#page-main">Skip to main content</a><Sidebar/><div className="workspace">
+  <header className="topbar"><div className="topbar-heading"><span className="eyebrow">LUNAR FIELD GUIDE</span><h1>{navigation.find(n=>n.path===pathname)?.label??(pathname==='/comparison'?'Compare sites':'Page not found')}</h1></div>
+   <div className="topbar-tools"><span className="status">{isMockMode?'Demo analysis':'NASA SPICE geometry'}</span><button className="theme-toggle" type="button" onClick={()=>setDarkMode(value=>!value)} aria-label={darkMode?'Switch to light mode':'Switch to dark mode'} aria-pressed={darkMode}>{darkMode?<Sun size={16}/>:<Moon size={16}/>}<span>{darkMode?'Light':'Dark'}</span></button></div>
+  </header>
+  <main id="page-main" key={pathname} tabIndex={-1}>{workflow&&<WorkflowNav/>}<Outlet/></main>
+  <footer><span>MOONWALK · NASA SPACE APPS</span><span>A lunar field guide. Models inform exploration.</span></footer>
+ </div></div>;
+}
 

@@ -198,7 +198,7 @@ export class MoonScene {
  private frame = 0;
  private flight: { from: THREE.Vector3; to: THREE.Vector3; t: number } | null = null;
  private lastFrame = performance.now();
- private options: SceneOptions = { grid: false, paths: true, labels: true, scale: 'compact', stars: true };
+ private options: SceneOptions = { grid: false, paths: true, labels: true, scale: 'true', stars: true };
  /** Star sphere: drawn first, without depth, centred on the camera so stars sit at infinity. */
  private sky = new THREE.Mesh(new THREE.SphereGeometry(1000, 96, 48),
   new THREE.MeshBasicMaterial({ side: THREE.BackSide, depthWrite: false, depthTest: false, color: 0xffffff }));

@@ -44,9 +44,10 @@ const fmtLatLon = (lat: number, lon: number) => `${Math.abs(lat).toFixed(2)}° $
 const deg = (v: number) => v.toFixed(2) + '°';
 
 /** View settings remembered across reloads in this browser (falls back to defaults if storage is blocked). */
-const PREFS_KEY = 'lunarsite.explorer.prefs.v1';
+// v2: the default scale became 'true'; the new key lets browsers that saved v1 prefs pick up the new default once.
+const PREFS_KEY = 'lunarsite.explorer.prefs.v2';
 interface ViewPrefs { scale: ScaleMode; grid: boolean; paths: boolean; labels: boolean; stars: boolean; speed: number; exaggeration: number; mission: string; }
-const DEFAULT_PREFS: ViewPrefs = { scale: 'compact', grid: false, paths: true, labels: true, stars: true, speed: 6, exaggeration: 5, mission: '' };
+const DEFAULT_PREFS: ViewPrefs = { scale: 'true', grid: false, paths: true, labels: true, stars: true, speed: 6, exaggeration: 5, mission: '' };
 const EXAGGERATIONS = [1, 2, 5, 10, 20];
 function loadPrefs(): ViewPrefs {
  try { return { ...DEFAULT_PREFS, ...(JSON.parse(localStorage.getItem(PREFS_KEY) ?? '{}') as Partial<ViewPrefs>) }; }
